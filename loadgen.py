@@ -21,7 +21,8 @@ fake = Faker()
 
 parser = argparse.ArgumentParser(description='Create some load for MovR.')
 
-parser.add_argument('--url', dest='conn_string', required=True, help="must include database name in url.")
+parser.add_argument('--url', dest='conn_string', default='cockroachdb://root@localhost:26257/movr?sslmode=disable',
+                    help="must include database name in url.")
 parser.add_argument('--version', dest='version', type=float, default=1.0, help="version of the ride sharing app.")
 parser.add_argument('--iterations', dest='iterations', type=int, default=0)
 parser.add_argument('--city', dest='city', action='append', required=True)
@@ -34,12 +35,8 @@ print "running version %f" % args.version
 print args.city
 Base = declarative_base()
 
-# http://docs.sqlalchemy.org/en/rel_0_9/dialects/postgresql.html#sqlalchemy.dialects.postgresql.JSON
-# @todo: NOT SURE WHY WE NEED THIS.
-def jsonb_deserializer(doc):
-    return doc
 
-engine = create_engine(args.conn_string, use_batch_mode=True, json_deserializer=jsonb_deserializer)
+engine = create_engine(args.conn_string, use_batch_mode=True)
 #engine = create_engine(args.conn_string, use_batch_mode=True, echo=True )
 
 
@@ -194,6 +191,7 @@ def add_vehicle_helper(session):
 
 
 def add_user_helper(session):
+    #@todo: return the added user so we can associate vehicles with her
     session.add(User())
 
 def add_vehicles():
