@@ -25,7 +25,7 @@ parser.add_argument('--url', dest='conn_string', default='cockroachdb://root@loc
                     help="must include database name in url.")
 parser.add_argument('--version', dest='version', type=float, default=1.0, help="version of the ride sharing app.")
 parser.add_argument('--iterations', dest='iterations', type=int, default=0)
-parser.add_argument('--city', dest='city', action='append', required=True)
+parser.add_argument('--city', dest='city', action='append', default=[])
 parser.add_argument('--load', dest='load', action='store_true')
 parser.add_argument('--kv-mode', dest='kv_mode', action='store_true', help="limit actions to kv lookups")
 
@@ -64,7 +64,7 @@ class User(Base):
     id = Column(UUID, default=generate_uuid)
     name = Column(String, default=fake.name)
     address = Column(String, default=fake.address)
-    credit_card = Column(Integer, default=fake.credit_card_number)
+    credit_card = Column(String, default=fake.credit_card_number)
     PrimaryKeyConstraint(id)
 
 class Vehicle(Base):
@@ -183,22 +183,18 @@ def browse_vehicles():
         session.close()
 
 
-def add_vehicle_helper(session):
+def add_vehicle_helper(session, user):
     vehicle_type = generate_random_vehicle()
     ext = generate_vehicle_metadata(vehicle_type) if args.version >= 1.1 else {}
-    session.add(Vehicle(type=vehicle_type, city=random.choice(args.city), owner_id=str(uuid.uuid4()),
+    session.add(Vehicle(type=vehicle_type, city=random.choice(args.city), owner_id=user.id,
                         status=get_vehicle_availability(), ext=ext))
 
 
-def add_user_helper(session):
-    #@todo: return the added user so we can associate vehicles with her
-    session.add(User())
 
-def add_vehicles():
 
-    session = Session()
+def add_vehicle(session, user):
     try:
-        add_vehicle_helper(session)
+        add_vehicle_helper(session, user)
         session.commit()
     except:
         session.rollback()
@@ -222,15 +218,22 @@ def simulate_action(keys):
     else:
         action = weighted_choice([(find_and_select_vehicle, .1),
                                   (browse_vehicles, .7), (returning_vehicle, .1),
-                                  (add_vehicles, .1)])
+                                  (add_vehicle, .1)])
 
     action()
 
 if args.load:
     #@todo: create database if it doesnt exist
     session = Session()
-    for x in range(0,100):
-        add_user_helper(session)
+    for x in range(0,1000):
+        u = User()
+        session.add(u)
+        #@todo: why do I need to commit before I get the user values?
+        session.commit()
+        if random.random() < .1:
+            add_vehicle(session, u)
+
+
     # for _ in range(args.iterations):
     #     add_vehicle_helper(session)
 
