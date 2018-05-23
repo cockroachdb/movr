@@ -1,11 +1,5 @@
 #!/usr/bin/python
 
-# demo user stories
-# I want to see the status of my app: select type, status, count(*) from vehicles group by type, status order by type, status;
-# I want to find all bikes near me: select * from vehicles where city='new york' and type='bike' and status='available';
-# Feature request: I want to search bikes by model;
-# I want to find all schwinn bikes near me: select * from vehicles where city='new york' and type='bike' and status='available' and ext @> '{"model":"Schwinn"}'
-
 import argparse
 
 from sqlalchemy import create_engine
@@ -19,6 +13,10 @@ import uuid
 import random
 import functools
 import traceback
+from faker import Faker
+fake = Faker()
+
+
 
 
 parser = argparse.ArgumentParser(description='Create some load for MovR.')
@@ -67,8 +65,9 @@ def weighted_choice(items):
 class User(Base):
     __tablename__ = 'users'
     id = Column(UUID, default=generate_uuid)
-    name = Column(String)
-    credit_card = Column(Integer)
+    name = Column(String, default=fake.name)
+    address = Column(String, default=fake.address)
+    credit_card = Column(Integer, default=fake.credit_card_number)
     PrimaryKeyConstraint(id)
 
 class Vehicle(Base):
@@ -195,7 +194,7 @@ def add_vehicle_helper(session):
 
 
 def add_user_helper(session):
-    session.add(User(name="Nate Stewart", credit_card=1234))
+    session.add(User())
 
 def add_vehicles():
 
@@ -232,7 +231,8 @@ def simulate_action(keys):
 if args.load:
     #@todo: create database if it doesnt exist
     session = Session()
-    add_user_helper(session)
+    for x in range(0,100):
+        add_user_helper(session)
     # for _ in range(args.iterations):
     #     add_vehicle_helper(session)
 
