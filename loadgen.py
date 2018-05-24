@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import argparse
-
+import generators
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Index, String, DateTime, Integer, Float, PrimaryKeyConstraint
@@ -9,13 +9,15 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import sessionmaker
 
 import datetime
-import uuid
+from generators import MovRGenerator
 import random
 import functools
 import traceback
 from faker import Faker
 fake = Faker()
 
+#@todo: make this a singleton
+gen = MovRGenerator()
 
 
 
@@ -40,29 +42,15 @@ engine = create_engine(args.conn_string, use_batch_mode=True)
 
 Session = sessionmaker(bind=engine)
 
-#@todo: how to do this in the database?
-def generate_uuid():
-    return str(uuid.uuid4())
-
-def generate_revenue():
-    return random.uniform(1,100)
 
 
-def weighted_choice(items):
-    """items is a list of tuples in the form (item, weight)"""
-    weight_total = sum((item[1] for item in items))
-    n = random.uniform(0, weight_total)
-    for item, weight in items:
-        if n < weight:
-            return item
-        n = n - weight
-    return item
 
 #@todo: how to add inverted index from sql alchemy
+#@todo: add interleaving
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column(UUID, default=generate_uuid)
+    id = Column(UUID, default=gen.generate_uuid)
     name = Column(String, default=fake.name)
     address = Column(String, default=fake.address)
     credit_card = Column(String, default=fake.credit_card_number)
@@ -71,17 +59,17 @@ class User(Base):
 
 class Ride(Base):
     __tablename__ = 'rides'
-    id = Column(UUID, default=generate_uuid)
+    id = Column(UUID, default=gen.generate_uuid)
     rider_id = Column(UUID)
     vehicle_id = Column(UUID)
     start_address = Column(String, default=fake.address)
     end_address = Column(String, default=fake.address)
-    revenue = Column(Float, default=generate_revenue )
+    revenue = Column(Float, default=gen.generate_revenue )
     PrimaryKeyConstraint(id)
 
 class Vehicle(Base):
     __tablename__ = 'vehicles'
-    id = Column(UUID, default=generate_uuid)
+    id = Column(UUID, default=gen.generate_uuid)
     type = Column(String)
     city = Column(String)
     owner_id = Column(UUID)
@@ -95,26 +83,9 @@ class Vehicle(Base):
 
 Base.metadata.create_all(engine)
 
-def generate_random_vehicle():
-    return random.choice(['skateboard', 'bike', 'scooter'])
-
-def generate_random_color():
-    return random.choice(['red', 'yellow', 'blue', 'green', 'black'])
-
-def gen_bike_brand():
-    return random.choice(['Merida','Fuji'
-    'Cervelo', 'Pinarello',
-    'Santa Cruz', 'Kona', 'Schwinn'])
-
-def generate_vehicle_metadata(type):
-    metadata = {}
-    metadata['color'] = generate_random_color()
-    if type == 'bike':
-        metadata['brand'] = gen_bike_brand()
-    return metadata
 
 def get_vehicle_availability():
-    return weighted_choice([("available", .4), ("in_use", .55), ("lost", .05)])
+    return gen.weighted_choice([("available", .4), ("in_use", .55), ("lost", .05)])
 
 def find_vehicle_from_keys(keys):
     find_vehicle_by_id(random.choice(keys))
@@ -196,8 +167,8 @@ def browse_vehicles():
 
 
 def add_vehicle_helper(session, user):
-    vehicle_type = generate_random_vehicle()
-    ext = generate_vehicle_metadata(vehicle_type)
+    vehicle_type = gen.generate_random_vehicle()
+    ext = gen.generate_vehicle_metadata(vehicle_type)
     vehicle = Vehicle(type=vehicle_type, city=random.choice(args.city), owner_id=user.id,
                         status=get_vehicle_availability(), ext=ext)
     session.add(vehicle)
@@ -236,10 +207,10 @@ def get_keys_for_cities():
 
 def simulate_action(keys):
     if args.kv_mode:
-        action = weighted_choice([(functools.partial(find_vehicle_from_keys, keys), .95),
+        action = gen.weighted_choice([(functools.partial(find_vehicle_from_keys, keys), .95),
                                   (functools.partial(update_vehicle_from_keys, keys), .05)])
     else:
-        action = weighted_choice([(find_and_select_vehicle, .1),
+        action = gen.weighted_choice([(find_and_select_vehicle, .1),
                                   (browse_vehicles, .7), (returning_vehicle, .1),
                                   (add_vehicle, .1)])
 
