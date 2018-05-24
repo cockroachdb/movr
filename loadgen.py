@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 movr = MovR(args.conn_string, drop = args.drop)
 
-
+#https://stackoverflow.com/questions/16626789/functools-partial-on-class-method
 # def simulate_action(keys):
 #     if args.kv_mode:
 #         action = gen.weighted_choice([(functools.partial(find_vehicle_from_keys, keys), .95),
@@ -54,16 +54,16 @@ if args.load:
 
 
     # print "added %d users" % args.iterations
-else:
-    keys = get_keys_for_cities()
-
-    if args.iterations == 0:
-        while True:
-            simulate_action(keys)
-
-    else:
-        for _ in range(args.iterations):
-            simulate_action(keys)
+# else:
+#     keys = get_keys_for_cities()
+#
+#     if args.iterations == 0:
+#         while True:
+#             simulate_action(keys)
+#
+#     else:
+#         for _ in range(args.iterations):
+#             simulate_action(keys)
 
 
 
