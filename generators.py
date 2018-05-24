@@ -1,32 +1,41 @@
 import uuid, random
 #@todo: how to do this in the database?
 
+
+#@todo: we shouldnt repeat the word generator in the class methods
 class MovRGenerator:
-    def generate_uuid(self):
+    @staticmethod
+    def generate_uuid():
         return str(uuid.uuid4())
 
-    def generate_revenue(self):
+    @staticmethod
+    def generate_revenue():
         return random.uniform(1,100)
 
-    def generate_random_vehicle(self):
+    @staticmethod
+    def generate_random_vehicle():
         return random.choice(['skateboard', 'bike', 'scooter'])
 
-    def generate_random_color(self):
+    @staticmethod
+    def generate_random_color():
         return random.choice(['red', 'yellow', 'blue', 'green', 'black'])
 
-    def gen_bike_brand(self):
+    @staticmethod
+    def gen_bike_brand():
         return random.choice(['Merida','Fuji'
         'Cervelo', 'Pinarello',
         'Santa Cruz', 'Kona', 'Schwinn'])
 
-    def generate_vehicle_metadata(self, type):
+    @staticmethod
+    def generate_vehicle_metadata(type):
         metadata = {}
-        metadata['color'] = self.generate_random_color()
+        metadata['color'] = MovRGenerator.generate_random_color()
         if type == 'bike':
-            metadata['brand'] = self.gen_bike_brand()
+            metadata['brand'] = MovRGenerator.gen_bike_brand()
         return metadata
 
-    def weighted_choice(self, items):
+    @staticmethod
+    def weighted_choice(items):
         """items is a list of tuples in the form (item, weight)"""
         weight_total = sum((item[1] for item in items))
         n = random.uniform(0, weight_total)
