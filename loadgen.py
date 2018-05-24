@@ -4,7 +4,7 @@ import argparse
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Index, String, DateTime, Integer, PrimaryKeyConstraint
+from sqlalchemy import Column, Index, String, DateTime, Integer, Float, PrimaryKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import sessionmaker
 
@@ -23,15 +23,13 @@ parser = argparse.ArgumentParser(description='Create some load for MovR.')
 
 parser.add_argument('--url', dest='conn_string', default='cockroachdb://root@localhost:26257/movr?sslmode=disable',
                     help="must include database name in url.")
-parser.add_argument('--version', dest='version', type=float, default=1.0, help="version of the ride sharing app.")
-parser.add_argument('--iterations', dest='iterations', type=int, default=0)
+parser.add_argument('--iterations', dest='iterations', type=int, default=100)
 parser.add_argument('--city', dest='city', action='append', default=[])
 parser.add_argument('--load', dest='load', action='store_true')
 parser.add_argument('--kv-mode', dest='kv_mode', action='store_true', help="limit actions to kv lookups")
 
 
 args = parser.parse_args()
-print "running version %f" % args.version
 print args.city
 Base = declarative_base()
 
@@ -45,6 +43,9 @@ Session = sessionmaker(bind=engine)
 #@todo: how to do this in the database?
 def generate_uuid():
     return str(uuid.uuid4())
+
+def generate_revenue():
+    return random.uniform(1,100)
 
 
 def weighted_choice(items):
@@ -65,6 +66,17 @@ class User(Base):
     name = Column(String, default=fake.name)
     address = Column(String, default=fake.address)
     credit_card = Column(String, default=fake.credit_card_number)
+    PrimaryKeyConstraint(id)
+
+
+class Ride(Base):
+    __tablename__ = 'rides'
+    id = Column(UUID, default=generate_uuid)
+    rider_id = Column(UUID)
+    vehicle_id = Column(UUID)
+    start_address = Column(String, default=fake.address)
+    end_address = Column(String, default=fake.address)
+    revenue = Column(Float, default=generate_revenue )
     PrimaryKeyConstraint(id)
 
 class Vehicle(Base):
@@ -185,9 +197,10 @@ def browse_vehicles():
 
 def add_vehicle_helper(session, user):
     vehicle_type = generate_random_vehicle()
-    ext = generate_vehicle_metadata(vehicle_type) if args.version >= 1.1 else {}
-    session.add(Vehicle(type=vehicle_type, city=random.choice(args.city), owner_id=user.id,
-                        status=get_vehicle_availability(), ext=ext))
+    ext = generate_vehicle_metadata(vehicle_type)
+    vehicle = Vehicle(type=vehicle_type, city=random.choice(args.city), owner_id=user.id,
+                        status=get_vehicle_availability(), ext=ext)
+    session.add(vehicle)
 
 
 
@@ -197,6 +210,16 @@ def add_vehicle(session, user):
         add_vehicle_helper(session, user)
         session.commit()
     except:
+        traceback.print_exc()
+        session.rollback()
+
+
+def get_ids_for_vehicles():
+    session = Session()
+    try:
+        return session.query(Vehicle.id).all()
+    except :
+        traceback.print_exc()
         session.rollback()
     finally:
         session.close()
@@ -225,21 +248,35 @@ def simulate_action(keys):
 if args.load:
     #@todo: create database if it doesnt exist
     session = Session()
-    for x in range(0,1000):
+
+    # create users and inventory
+    user_ids = []
+    for x in range(0,args.iterations):
         u = User()
         session.add(u)
-        #@todo: why do I need to commit before I get the user values?
         session.commit()
-        if random.random() < .1:
-            add_vehicle(session, u)
+        user_ids.append(u.id)
+        if random.random() < .1: #10% of users are on the supply side
+            owned_vehicles = random.randint(1,5)
+            for i in range(owned_vehicles):
+                add_vehicle(session, u)
+                #print v.id
+                #vehicle_ids.append(v.id)
 
 
-    # for _ in range(args.iterations):
-    #     add_vehicle_helper(session)
+
+    # create rides
+    vehicle_ids = get_ids_for_vehicles()
+
+    for x in range(0,1000):
+        session.add(Ride(rider_id=random.choice(user_ids), vehicle_id=random.choice(vehicle_ids)[0]))
 
     session.commit()
+    session.close()
 
-    # print "added %d vehicles" % args.iterations
+
+
+    # print "added %d users" % args.iterations
 else:
     keys = get_keys_for_cities()
 
