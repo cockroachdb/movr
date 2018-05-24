@@ -14,12 +14,12 @@ from generators import MovRGenerator
 
 class MovR:
 
-    def __init__(self, conn_string):
+    def __init__(self, conn_string, drop = False):
         engine = create_engine(conn_string, convert_unicode=True)
 
-
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        if drop:
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
 
         # @todo: make this a singleton
         MovR.gen = MovRGenerator()

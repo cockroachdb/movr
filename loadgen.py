@@ -2,36 +2,23 @@
 
 import argparse
 
-
-import datetime
-
 from movr import MovR
 import random
 import functools
 
-
-
-
-
-
 parser = argparse.ArgumentParser(description='Create some load for MovR.')
 parser.add_argument('--url', dest='conn_string', default='cockroachdb://root@localhost:26257/movr?sslmode=disable',
                     help="must include database name in url.")
-parser.add_argument('--iterations', dest='iterations', type=int, default=100)
+parser.add_argument('--iterations', dest='iterations', type=int, default=0)
+parser.add_argument('--users', dest='users', type=int, default=50)
 parser.add_argument('--city', dest='city', action='append', default=[])
 parser.add_argument('--load', dest='load', action='store_true')
+parser.add_argument('--drop', dest='drop', action='store_true', help="drop and reload MovR tables")
 parser.add_argument('--kv-mode', dest='kv_mode', action='store_true', help="limit actions to kv lookups")
 
 args = parser.parse_args()
 
-movr = MovR(args.conn_string)
-
-#@todo: how to add inverted index from sql alchemy
-#@todo: add interleaving
-
-
-
-
+movr = MovR(args.conn_string, drop = args.drop)
 
 
 # def simulate_action(keys):
@@ -51,7 +38,7 @@ if args.load:
     # create users and inventory
     user_ids = []
     vehicle_ids = []
-    for x in range(0,args.iterations):
+    for x in range(0,args.users):
         user_id = movr.add_user()
         user_ids.append(user_id)
         if random.random() < .1: #10% of users are on the supply side
@@ -61,7 +48,7 @@ if args.load:
 
 
     # create rides
-    for x in range(0,100):
+    for x in range(0,args.users*10):
         movr.add_ride(random.choice(user_ids), random.choice(vehicle_ids))
 
 

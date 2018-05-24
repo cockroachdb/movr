@@ -7,6 +7,9 @@ import datetime
 
 from generators import MovRGenerator
 
+#@todo: how to add inverted index from sql alchemy
+#@todo: add interleaving
+
 Base = declarative_base()
 
 class User(Base):
