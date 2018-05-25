@@ -17,6 +17,10 @@ class MovRGenerator:
         return random.choice(['skateboard', 'bike', 'scooter'])
 
     @staticmethod
+    def get_vehicle_availability():
+        return MovRGenerator.weighted_choice([("available", .4), ("in_use", .55), ("lost", .05)])
+
+    @staticmethod
     def generate_random_color():
         return random.choice(['red', 'yellow', 'blue', 'green', 'black'])
 
