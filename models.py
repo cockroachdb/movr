@@ -7,7 +7,6 @@ import datetime
 
 from generators import MovRGenerator
 
-#@todo: how to add inverted index from sql alchemy
 #@todo: add interleaving
 
 Base = declarative_base()
@@ -51,8 +50,7 @@ class Vehicle(Base):
     ext = Column(JSONB)  # this isnt decoding properly
     PrimaryKeyConstraint(city, id)
     __table_args__ = (Index('ix_vehicle_type', type),)
-    # @todo: FK on owner ID on delete cascade
-    # __table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), )
+    __table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), )
     def __repr__(self):
         return "<Vehicle(id='%s', type='%s', status='%s', ext='%s')>" % (self.id, self.type, self.status, self.ext)
 

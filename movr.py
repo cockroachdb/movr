@@ -1,18 +1,10 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy_utils import database_exists, create_database
-
+from sqlalchemy.orm import sessionmaker
 import traceback
-import random
 from faker import Faker
-from models import Base
-from models import User, Vehicle, Ride
+from models import Base, User, Vehicle, Ride
 from generators import MovRGenerator
 import datetime
-
-
-#@todo: remove hard coded connection string
 
 class MovR:
 
@@ -31,8 +23,8 @@ class MovR:
 
     def start_ride(self, rider_id, vehicle_id):
         r = Ride(id = MovRGenerator.generate_uuid(),
-                              rider_id=rider_id, vehicle_id=vehicle_id,
-                              start_address = MovR.fake.address())
+                 rider_id=rider_id, vehicle_id=vehicle_id,
+                 start_address = MovR.fake.address())
         self.session.add(r)
         self.session.query(Vehicle).filter_by(id=vehicle_id).update({"status": "in_use"})
         self.session.commit()
@@ -61,7 +53,6 @@ class MovR:
 
     def get_active_rides(self):
         return self.session.query(Ride).filter_by(end_time = None).all()
-
 
     def add_vehicle(self, user_id, cities):
         try:
