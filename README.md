@@ -1,2 +1,3 @@
-# movr
-soon-to-be-public repo containing data and examples for our fictional ride sharing company.
+# MovR
+
+MovR is a fictional ride sharing company. This repo contains datasets and load generators.
