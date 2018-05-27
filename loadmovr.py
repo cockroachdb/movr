@@ -35,13 +35,17 @@ def simulate_movr_load(movr):
     active_ride_ids = set(map(lambda x: x.id, movr.get_active_rides()))
 
     while True:
-        if random.random() < .1:
-            ride = movr.start_ride(random.choice(users).id, random.choice(vehicles).id)
-            active_ride_ids.add(ride.id)
-        else:
-            if len(active_ride_ids):
-                ride_id = active_ride_ids.pop()  # pick arbitraty ride to end
-                movr.end_ride(ride_id)
+        try:
+            if random.random() < .1:
+                ride = movr.start_ride(random.choice(users).id, random.choice(vehicles).id)
+                active_ride_ids.add(ride.id)
+            else:
+                if len(active_ride_ids):
+                    ride_id = active_ride_ids.pop()  # pick arbitraty ride to end
+                    movr.end_ride(ride_id)
+        except KeyboardInterrupt:
+            break
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CLI for MovR.')
