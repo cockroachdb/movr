@@ -33,7 +33,6 @@ def simulate_movr_load(movr):
     vehicles = movr.get_vehicles()
 
     active_ride_ids = set(map(lambda x: x.id, movr.get_active_rides()))
-    print active_ride_ids
 
     while True:
         if random.random() < .1:

@@ -6,6 +6,8 @@ from models import Base, User, Vehicle, Ride
 from generators import MovRGenerator
 import datetime
 
+#@todo: add query retries
+
 class MovR:
 
     def __init__(self, conn_string, reload_tables = False):
@@ -55,21 +57,17 @@ class MovR:
         return self.session.query(Ride).filter_by(end_time = None).all()
 
     def add_vehicle(self, user_id, cities):
-        try:
-            vehicle_type = MovRGenerator.generate_random_vehicle()
-            ext = MovRGenerator.generate_vehicle_metadata(vehicle_type)
-            vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type, city=cities,
-                              owner_id=user_id,
-                              status=MovRGenerator.get_vehicle_availability(), ext=ext)
+        vehicle_type = MovRGenerator.generate_random_vehicle()
+        ext = MovRGenerator.generate_vehicle_metadata(vehicle_type)
+        vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type, city=cities,
+                          owner_id=user_id,
+                          status=MovRGenerator.get_vehicle_availability(), ext=ext)
 
-            self.session.add(vehicle)
-            self.session.commit()
+        self.session.add(vehicle)
+        self.session.commit()
 
-            return vehicle
-        except:
-            traceback.print_exc()
-            self.session.rollback()
-            raise
+        return vehicle
+
 
 
 
