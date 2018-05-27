@@ -20,6 +20,9 @@ class User(Base):
     credit_card = Column(String)
     PrimaryKeyConstraint(id)
 
+    def __repr__(self):
+        return "<User(id='%s', name='%s')>" % (self.id, self.name)
+
 
 class Ride(Base):
     __tablename__ = 'rides'
@@ -32,6 +35,9 @@ class Ride(Base):
     end_time = Column(DateTime)
     revenue = Column(Float)
     PrimaryKeyConstraint(id)
+
+    def __repr__(self):
+        return "<Ride(id='%s', start_address='%s', end_address='%s')>" % (self.id, self.start_address, self.end_address)
 
 
 class Vehicle(Base):
