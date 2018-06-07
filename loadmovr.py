@@ -7,8 +7,6 @@ import sys
 import time
 
 def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
-    user_ids = []
-    vehicle_ids = []
 
     # add users
     start_time = time.time()
@@ -22,26 +20,13 @@ def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
     print "added %d vehicles in %f seconds (%f vehicles/second)" % \
           (num_vehicles, time.time() - start_time, num_vehicles / float(time.time() - start_time))
 
+    # add rides
     start_time = time.time()
     movr.add_rides(num_rides)
     print "added %d rides in %f seconds (%f rides/second)" % \
           (num_rides, time.time() - start_time, num_rides / float(time.time() - start_time))
 
     return
-
-
-
-    # # add rides
-    # for x in range(0, num_users_to_load * 10):
-    #     if x % 25 == 0:
-    #         print "added %d/%d rides" % (x, num_users_to_load * 10)
-    #     rider = random.choice(user_ids)
-    #     vehicle = random.choice(vehicle_ids)
-    #     ride = movr.start_ride(rider, vehicle)
-    #     if random.random() < .99:
-    #         movr.end_ride(ride.id)
-    #
-    # print "added %d users, %d vehicles, and %d rides" % (num_users_to_load, len(vehicle_ids), num_users_to_load * 10)
 
 def simulate_movr_load(movr):
     users = movr.get_users()
