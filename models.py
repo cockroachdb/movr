@@ -1,6 +1,6 @@
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Index, String, DateTime, Integer, Float, PrimaryKeyConstraint
+from sqlalchemy import Column, Index, String, DateTime, Integer, Float, PrimaryKeyConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 import datetime
@@ -26,8 +26,8 @@ class User(Base):
 class Ride(Base):
     __tablename__ = 'rides'
     id = Column(UUID, default=MovRGenerator.generate_uuid)
-    rider_id = Column(UUID)
-    vehicle_id = Column(UUID)
+    rider_id = Column(UUID, ForeignKey("users.id"))
+    vehicle_id = Column(UUID, ForeignKey("vehicles.id"))
     start_address = Column(String)
     end_address = Column(String)
     start_time = Column(DateTime, default=datetime.datetime.now)
@@ -41,10 +41,10 @@ class Ride(Base):
 
 class Vehicle(Base):
     __tablename__ = 'vehicles'
-    id = Column(UUID, default=MovRGenerator.generate_uuid)
+    id = Column(UUID, default=MovRGenerator.generate_uuid, unique=True)
     type = Column(String)
     city = Column(String)
-    owner_id = Column(UUID)
+    owner_id = Column(UUID, ForeignKey("users.id"))
     creation_time = Column(DateTime, default=datetime.datetime.now)
     status = Column(String)
     ext = Column(JSONB)  # this isnt decoding properly
