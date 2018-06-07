@@ -47,7 +47,7 @@ class Vehicle(Base):
     owner_id = Column(UUID, ForeignKey("users.id"))
     creation_time = Column(DateTime, default=datetime.datetime.now)
     status = Column(String)
-    ext = Column(JSONB)  # this isnt decoding properly
+    ext = Column(JSONB)
     PrimaryKeyConstraint(city, id)
     __table_args__ = (Index('ix_vehicle_type', type),)
     #__table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), )
