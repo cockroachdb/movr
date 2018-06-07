@@ -3,6 +3,7 @@
 import argparse
 from movr import MovR
 import random
+import sys
 
 def load_movr_data(movr, num_users_to_load, cities):
     user_ids = []
@@ -18,8 +19,15 @@ def load_movr_data(movr, num_users_to_load, cities):
                 vehicle = movr.add_vehicle(user.id, random.choice(cities))
                 vehicle_ids.append(vehicle.id)
 
+    #@todo: improve ux here.
+    if len(vehicle_ids) == 0:
+        print "please add more users. adding only %d users resulted in 0 vehicles being created" % num_users_to_load
+        sys.exit(1)
+
     # add rides
     for x in range(0, num_users_to_load * 10):
+        if x % 25 == 0:
+            print "added %d/%d rides" % (x, num_users_to_load * 10)
         rider = random.choice(user_ids)
         vehicle = random.choice(vehicle_ids)
         ride = movr.start_ride(rider, vehicle)
