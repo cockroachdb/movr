@@ -4,41 +4,53 @@ import argparse
 from movr import MovR
 import random
 import sys
+import time
 
-def load_movr_data(movr, num_users_to_load, cities):
+def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
     user_ids = []
     vehicle_ids = []
 
-    # add users and inventory
-    for x in range(0, num_users_to_load):
-        user = movr.add_user()
-        user_ids.append(user.id)
-        if random.random() < .1:  # 10% of users are on the supply side
-            owned_vehicles = random.randint(1, 5)
-            for i in range(owned_vehicles):
-                vehicle = movr.add_vehicle(user.id, random.choice(cities))
-                vehicle_ids.append(vehicle.id)
+    # add users
+    start_time = time.time()
+    movr.add_users(num_users)
+    print "added %d users in %f seconds (%f users/second)" % \
+          (num_users,  time.time() - start_time, num_users / float(time.time() - start_time))
 
-    #@todo: improve ux here.
-    if len(vehicle_ids) == 0:
-        print "please add more users. adding only %d users resulted in 0 vehicles being created" % num_users_to_load
-        sys.exit(1)
+    # add vehicles
+    start_time = time.time()
+    movr.add_vehicles(num_vehicles, cities)
+    print "added %d vehicles in %f seconds (%f vehicles/second)" % \
+          (num_vehicles, time.time() - start_time, num_vehicles / float(time.time() - start_time))
 
-    # add rides
-    for x in range(0, num_users_to_load * 10):
-        if x % 25 == 0:
-            print "added %d/%d rides" % (x, num_users_to_load * 10)
-        rider = random.choice(user_ids)
-        vehicle = random.choice(vehicle_ids)
-        ride = movr.start_ride(rider, vehicle)
-        if random.random() < .99:
-            movr.end_ride(ride.id)
+    start_time = time.time()
+    movr.add_rides(num_rides)
+    print "added %d rides in %f seconds (%f rides/second)" % \
+          (num_rides, time.time() - start_time, num_rides / float(time.time() - start_time))
 
-    print "added %d users, %d vehicles, and %d rides" % (num_users_to_load, len(vehicle_ids), num_users_to_load * 10)
+    return
+
+
+
+    # # add rides
+    # for x in range(0, num_users_to_load * 10):
+    #     if x % 25 == 0:
+    #         print "added %d/%d rides" % (x, num_users_to_load * 10)
+    #     rider = random.choice(user_ids)
+    #     vehicle = random.choice(vehicle_ids)
+    #     ride = movr.start_ride(rider, vehicle)
+    #     if random.random() < .99:
+    #         movr.end_ride(ride.id)
+    #
+    # print "added %d users, %d vehicles, and %d rides" % (num_users_to_load, len(vehicle_ids), num_users_to_load * 10)
 
 def simulate_movr_load(movr):
     users = movr.get_users()
     vehicles = movr.get_vehicles()
+
+    if len(vehicles) == 0 or len(users) == 0:
+        print "must have users and vehicles in the movr database to generte load. try running with the --load command."
+        sys.exit(1)
+
 
     active_ride_ids = set(map(lambda x: x.id, movr.get_active_rides()))
 
@@ -59,7 +71,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CLI for MovR.')
     parser.add_argument('--url', dest='conn_string', default='cockroachdb://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database.")
-    parser.add_argument('--users', dest='users', type=int, default=50)
+    parser.add_argument('--num-users', dest='num_users', type=int, default=50)
+    parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
+    parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
     parser.add_argument('--city', dest='city', action='append',
                         help='The names of the cities in which to place vehicles')
     parser.add_argument('--load', dest='load', action='store_true', help='Load data into the MovR database')
@@ -75,7 +89,7 @@ if __name__ == '__main__':
 
     if args.reload_tables or args.load:
         print "loading movr data"
-        load_movr_data(movr, args.users, cities)
+        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities)
 
     else:
         print "simulating movr load"
