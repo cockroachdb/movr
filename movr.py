@@ -65,21 +65,21 @@ class MovR:
                  revenue = MovRGenerator.generate_revenue(),
                  end_time=datetime.datetime.now()))
             self.session.bulk_save_objects(rides)
-        self.session.commit()
+            self.session.commit()
 
     def add_users(self, num_users):
-        chunk_size = 10000
+        chunk_size = 50000
         for chunk in range(0, num_users, chunk_size):
             users = []
             for i in range(chunk, min(chunk + chunk_size, num_users)):
                 users.append(User(id = MovRGenerator.generate_uuid(), name = MovR.fake.name(),
                       address = MovR.fake.address(), credit_card = MovR.fake.credit_card_number()))
             self.session.bulk_save_objects(users)
-        self.session.commit()
+            self.session.commit()
 
     def add_vehicles(self, num_vehicles, cities):
         owners = self.session.query(User).all()
-        chunk_size = 10000
+        chunk_size = 50000
         for chunk in range(0, num_vehicles, chunk_size):
             vehicles = []
             for i in range(chunk, min(chunk + chunk_size, num_vehicles)):
@@ -88,7 +88,7 @@ class MovR:
                           city=random.choice(cities), owner_id=(random.choice(owners)).id, status=MovRGenerator.get_vehicle_availability(),
                           ext=MovRGenerator.generate_vehicle_metadata(vehicle_type)))
             self.session.bulk_save_objects(vehicles)
-        self.session.commit()
+            self.session.commit()
 
     def get_users(self):
         return self.session.query(User).all()
