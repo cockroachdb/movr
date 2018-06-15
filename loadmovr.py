@@ -6,9 +6,18 @@ import random
 import sys
 import time
 
-MOVR_CITIES = ["new york", "boston", "washington dc", "san francisco", "seattle", "los angeles", "amsterdam", "paris", "rome" ]
+MOVR_PARTITIONS = {
+    "us_east": ["new york", "boston", "washington dc"],
+    "us_west": ["san francisco", "seattle", "los angeles"],
+    "eu_east": ["amsterdam", "paris", "rome"]
+}
 
-def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
+def load_movr_data(movr, num_users, num_vehicles, num_rides):
+
+    #get all cities
+    cities = []
+    for region in MOVR_PARTITIONS:
+        cities += MOVR_PARTITIONS[region]
 
     for city in cities:
         print "populating %s" % city
@@ -83,9 +92,12 @@ if __name__ == '__main__':
     parser.add_argument('--load', dest='load', action='store_true', help='Load data into the MovR database')
     parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
                         help='Drop and reload MovR tables. Use with --load')
+    parser.add_argument('--enable-ccl-features', dest='is_enterprise', action='store_true',
+                        help='set this to true if your cluster has an enterprise license')
     args = parser.parse_args()
 
-    movr = MovR(args.conn_string.replace("postgres://", "cockroachdb://"), reload_tables=args.reload_tables)
+    movr = MovR(args.conn_string.replace("postgres://", "cockroachdb://"), MOVR_PARTITIONS,
+                is_enterprise=args.is_enterprise, reload_tables=args.reload_tables)
 
     print "connected to movr database @ %s" % args.conn_string
 
@@ -96,9 +108,9 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if args.reload_tables or args.load:
-        print "loading movr data with %d cities, %d users, %d vehicles, and %d rides" % \
-              (len(MOVR_CITIES), args.num_users, args.num_vehicles, args.num_rides)
-        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, MOVR_CITIES)
+        print "loading movr data with %d users, %d vehicles, and %d rides" % \
+              (args.num_users, args.num_vehicles, args.num_rides)
+        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides)
 
     else:
         print "simulating movr load for cities %s" % cities
