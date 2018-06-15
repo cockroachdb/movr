@@ -9,7 +9,7 @@ import time
 MOVR_PARTITIONS = {
     "us_east": ["new york", "boston", "washington dc"],
     "us_west": ["san francisco", "seattle", "los angeles"],
-    "eu_east": ["amsterdam", "paris", "rome"]
+    "eu_west": ["amsterdam", "paris", "rome"]
 }
 
 def load_movr_data(movr, num_users, num_vehicles, num_rides):
@@ -96,6 +96,10 @@ if __name__ == '__main__':
                         help='set this to true if your cluster has an enterprise license')
     args = parser.parse_args()
 
+    if args.conn_string.find("/movr") < 0:
+        print "The connection string needs to point to a database named 'movr'"
+        sys.exit(1)
+
     movr = MovR(args.conn_string.replace("postgres://", "cockroachdb://"), MOVR_PARTITIONS,
                 is_enterprise=args.is_enterprise, reload_tables=args.reload_tables)
 
@@ -106,6 +110,8 @@ if __name__ == '__main__':
     if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
         print "The number of objects to generate must be > 0"
         sys.exit(1)
+
+
 
     if args.reload_tables or args.load:
         print "loading movr data with %d users, %d vehicles, and %d rides" % \
