@@ -6,4 +6,6 @@ Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://ro
 
 Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@192.168.65.1:26257/movr?sslmode=disable" --city "new york" --city "boston"`
 
+Use the flag `--enable-ccl-features` to setup partitions
+
 Note that `192.168.65.1` routes to localhost on OSX. [More info here](https://github.com/docker/for-mac/issues/1679)

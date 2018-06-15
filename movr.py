@@ -11,7 +11,7 @@ import random
 
 class MovR:
 
-    def __init__(self, conn_string, reload_tables = False):
+    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False):
         engine = create_engine(conn_string, convert_unicode=True)
 
         if reload_tables:
@@ -22,6 +22,26 @@ class MovR:
         self.session = sessionmaker(bind=engine)()
 
         MovR.fake = Faker()
+
+        #setup geo-partitioning if this is an enterprise cluster
+        if is_enterprise:
+            partition_string = ""
+            first_region = True
+            for region in partition_map:
+                partition_string += "PARTITION " + region + " VALUES IN (" if first_region \
+                    else ", PARTITION " + region + " VALUES IN ("
+                first_region = False
+                first_city = True
+                for city in partition_map[region]:
+                    partition_string+="'" + city + "' " if first_city else ", '" + city + "'"
+                    first_city = False
+                partition_string += ")"
+
+            for table in ["vehicles", "users", "rides"]:
+                partition_sql = "ALTER TABLE "+ table + " PARTITION BY LIST (city) (" + partition_string + ")"
+                self.session.execute(partition_sql)
+                #@todo: add error handling
+
 
 
     def start_ride(self, city, rider_id, vehicle_id):
