@@ -73,8 +73,8 @@ def simulate_movr_load(movr, cities):
 if __name__ == '__main__':
     #@todo: add subparses for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
     parser = argparse.ArgumentParser(description='CLI for MovR.')
-    parser.add_argument('--url', dest='conn_string', default='cockroachdb://root@localhost:26257/movr?sslmode=disable',
-                        help="connection string to movr database.")
+    parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
+                        help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
     parser.add_argument('--num-users', dest='num_users', type=int, default=50)
     parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
     parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
@@ -85,7 +85,7 @@ if __name__ == '__main__':
                         help='Drop and reload MovR tables. Use with --load')
     args = parser.parse_args()
 
-    movr = MovR(args.conn_string, reload_tables=args.reload_tables)
+    movr = MovR(args.conn_string.replace("postgres://", "cockroachdb://"), reload_tables=args.reload_tables)
 
     print "connected to movr database @ %s" % args.conn_string
 
