@@ -8,23 +8,27 @@ import time
 
 def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
 
-    # add users
-    start_time = time.time()
-    movr.add_users(num_users)
-    print "added %d users in %f seconds (%f users/second)" % \
-          (num_users,  time.time() - start_time, num_users / float(time.time() - start_time))
+    #@todo: fill in demand one city at a time so people are close to eachother
 
-    # add vehicles
-    start_time = time.time()
-    movr.add_vehicles(num_vehicles, cities)
-    print "added %d vehicles in %f seconds (%f vehicles/second)" % \
-          (num_vehicles, time.time() - start_time, num_vehicles / float(time.time() - start_time))
+    for city in cities:
+        print "populating %s" % city
+        # add users
+        start_time = time.time()
+        movr.add_users(int(num_users / len(cities)), city)
+        print "added %d users in %f seconds (%f users/second)" % \
+              (num_users,  time.time() - start_time, num_users / float(time.time() - start_time))
 
-    # add rides
-    start_time = time.time()
-    movr.add_rides(num_rides)
-    print "added %d rides in %f seconds (%f rides/second)" % \
-          (num_rides, time.time() - start_time, num_rides / float(time.time() - start_time))
+        # add vehicles
+        start_time = time.time()
+        movr.add_vehicles(int(num_vehicles / len(cities)), city)
+        print "added %d vehicles in %f seconds (%f vehicles/second)" % \
+              (num_vehicles, time.time() - start_time, num_vehicles / float(time.time() - start_time))
+
+        # add rides
+        start_time = time.time()
+        movr.add_rides(int(num_rides/len(cities)), city)
+        print "added %d rides in %f seconds (%f rides/second)" % \
+              (num_rides, time.time() - start_time, num_rides / float(time.time() - start_time))
 
     return
 
@@ -72,8 +76,13 @@ if __name__ == '__main__':
 
     cities = ['new york'] if args.city == None else args.city
 
+    if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
+        print "The number of objects to generate must be > 0"
+        sys.exit(1)
+
     if args.reload_tables or args.load:
-        print "loading movr data"
+        print "loading movr data with %d cities, %d users, %d vehicles, and %d rides" % \
+              (len(cities), args.num_users, args.num_vehicles, args.num_rides)
         load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities)
 
     else:
