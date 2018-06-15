@@ -24,21 +24,21 @@ class MovR:
         MovR.fake = Faker()
 
 
-    def start_ride(self, rider_id, vehicle_id):
-        r = Ride(id = MovRGenerator.generate_uuid(),
+    def start_ride(self, city, rider_id, vehicle_id):
+        r = Ride(city = city, vehicle_city = city, id = MovRGenerator.generate_uuid(),
                  rider_id=rider_id, vehicle_id=vehicle_id,
                  start_address = MovR.fake.address()) #@todo: this should be the address of the vehicle
         self.session.add(r)
-        self.session.query(Vehicle).filter_by(id=vehicle_id).update({"status": "in_use"})
+        self.session.query(Vehicle).filter_by(city=city, id=vehicle_id).update({"status": "in_use"})
         self.session.commit()
         return r
 
-    def end_ride(self, ride_id):
-        ride = self.session.query(Ride).filter_by(id=ride_id).first()
+    def end_ride(self, city, ride_id):
+        ride = self.session.query(Ride).filter_by(city = city, id=ride_id).first()
         ride.end_address = MovR.fake.address() #@todo: this should update the address of the vehicle
         ride.revenue = MovRGenerator.generate_revenue()
         ride.end_time = datetime.datetime.now()
-        self.session.query(Vehicle).filter_by(id = ride.vehicle_id).update({"status": "available"})
+        self.session.query(Vehicle).filter_by(city = city, id = ride.vehicle_id).update({"status": "available"})
         self.session.commit()
 
     def add_user(self):
@@ -91,11 +91,11 @@ class MovR:
             self.session.bulk_save_objects(vehicles)
             self.session.commit()
 
-    def get_users(self):
-        return self.session.query(User).all()
+    def get_users(self, city):
+        return self.session.query(User).filter_by(city=city).all()
 
-    def get_vehicles(self):
-        return self.session.query(Vehicle).all()
+    def get_vehicles(self, city):
+        return self.session.query(Vehicle).filter_by(city=city).all()
 
     def get_active_rides(self):
         return self.session.query(Ride).filter_by(end_time = None).all()

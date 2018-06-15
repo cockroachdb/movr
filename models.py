@@ -22,7 +22,7 @@ class User(Base):
     PrimaryKeyConstraint(city, id)
 
     def __repr__(self):
-        return "<User(id='%s', name='%s')>" % (self.id, self.name)
+        return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
 
 #@todo: sqlalchemy fails silently if compound fks are in the wrong order.
 class Ride(Base):
@@ -43,7 +43,7 @@ class Ride(Base):
 
 
     def __repr__(self):
-        return "<Ride(id='%s', start_address='%s', end_address='%s')>" % (self.id, self.start_address, self.end_address)
+        return "<Ride(city='%s', id='%s', rider_id='%s', vehicle_id='%s')>" % (self.city, self.id, self.rider_id, self.vehicle_id)
 
 
 class Vehicle(Base):
@@ -61,6 +61,6 @@ class Vehicle(Base):
     __table_args__ = (ForeignKeyConstraint([city, owner_id], ["users.city", "users.id"]),)
     #__table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), )
     def __repr__(self):
-        return "<Vehicle(id='%s', type='%s', status='%s', ext='%s')>" % (self.id, self.type, self.status, self.ext)
+        return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 
 

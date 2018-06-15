@@ -35,26 +35,33 @@ def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
 
     return
 
-def simulate_movr_load(movr):
-    users = movr.get_users()
-    vehicles = movr.get_vehicles()
+def simulate_movr_load(movr, cities):
+    #note this is all in memory so be careful
 
-    if len(vehicles) == 0 or len(users) == 0:
-        print "must have users and vehicles in the movr database to generte load. try running with the --load command."
-        sys.exit(1)
+    movr_objects = {}
+    for city in cities:
+        movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city) }
+        if len(movr_objects[city]["vehicles"]) == 0 or len(movr_objects[city]["users"]) == 0:
+            print "must have users and vehicles in the movr database to generte load. try running with the --load command."
+            sys.exit(1)
 
 
-    active_ride_ids = set(map(lambda x: x.id, movr.get_active_rides()))
+    active_rides =  movr.get_active_rides()
+    #active_ride_ids = set(map(lambda x: x.id, movr.get_active_rides()))
 
     while True:
         try:
+            active_city = random.choice(cities)
             if random.random() < .1:
-                ride = movr.start_ride(random.choice(users).id, random.choice(vehicles).id)
-                active_ride_ids.add(ride.id)
+                ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"]).id,
+                                       random.choice(movr_objects[active_city]["vehicles"]).id)
+                print "started ride %s" % ride
+                active_rides.append(ride)
             else:
-                if len(active_ride_ids):
-                    ride_id = active_ride_ids.pop()  # pick arbitraty ride to end
-                    movr.end_ride(ride_id)
+                if len(active_rides):
+                    ride = active_rides.pop()  # pick arbitraty ride to end
+                    movr.end_ride(ride.city, ride.id)
+                    print "ended ride %s" % ride
         except KeyboardInterrupt:
             break
 
@@ -90,8 +97,8 @@ if __name__ == '__main__':
         load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, MOVR_CITIES)
 
     else:
-        print "simulating movr load"
-        simulate_movr_load(movr)
+        print "simulating movr load for cities %s" % cities
+        simulate_movr_load(movr, cities)
 
 
 
