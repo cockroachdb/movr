@@ -53,12 +53,12 @@ class MovR:
         chunk_size = 10000
 
         users = self.session.query(User).filter_by(city=city).all()
-        vehicles = self.session.query(Vehicle).all()
+        vehicles = self.session.query(Vehicle).filter_by(city=city).all()
 
         for chunk in range(0, num_rides, chunk_size):
             rides = []
             for i in range(chunk, min(chunk + chunk_size, num_rides)):
-                rides.append(Ride(id = MovRGenerator.generate_uuid(), city = city,
+                rides.append(Ride(id = MovRGenerator.generate_uuid(), city = city, vehicle_city = city,
                  rider_id=random.choice(users).id, vehicle_id=random.choice(vehicles).id,
                  start_address = MovR.fake.address(),
                  end_address = MovR.fake.address(),
