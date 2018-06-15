@@ -47,21 +47,25 @@ def simulate_movr_load(movr, cities):
 
 
     active_rides =  movr.get_active_rides()
-    #active_ride_ids = set(map(lambda x: x.id, movr.get_active_rides()))
 
     while True:
         try:
             active_city = random.choice(cities)
-            if random.random() < .1:
+            if random.random() < .01:
+                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new login
+            elif random.random() < .15:
+                movr.get_vehicles(active_city,25) #simulate user loading screen
+            elif random.random() < .001:
+                movr_objects[active_city]["vehicles"].append(
+                    movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"]).id)) #add vehicles
+            elif random.random() < .42:
                 ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"]).id,
                                        random.choice(movr_objects[active_city]["vehicles"]).id)
-                print "started ride %s" % ride
                 active_rides.append(ride)
             else:
                 if len(active_rides):
-                    ride = active_rides.pop()  # pick arbitraty ride to end
+                    ride = active_rides.pop()
                     movr.end_ride(ride.city, ride.id)
-                    print "ended ride %s" % ride
         except KeyboardInterrupt:
             break
 
