@@ -1,6 +1,6 @@
 # MovR
 
-MovR is a fictional ride sharing company. This repo contains datasets and load generators.
+MovR is a fictional ride sharing company. This repo contains datasets and load generators. We plan to make this repo public in time for the CockroachDB 2.1 release.
 
 Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@192.168.65.1:26257/movr?sslmode=disable" --load --reload-tables --num-users 100 --num-rides 100 --num-vehicles 10`
 
@@ -9,7 +9,7 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 Note that when using the Docker image, `192.168.65.1` routes to localhost on OSX. [More info here](https://github.com/docker/for-mac/issues/1679)
 
 
-##Setup geo-partitioned cluster  
+## Simulate a geo-partitioned MovR deployment  
 
 ### Setup the cluster and load data
 
@@ -18,6 +18,8 @@ Note that when using the Docker image, `192.168.65.1` routes to localhost on OSX
 `roachprod pgurl ${FULLNAME} --external` to get urls
 
 `docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" --load --enable-ccl-features --reload-tables`
+
+*note we start movr with the `--enable-ccl-features` flag*
 
 ### Add partitions
 `roachprod ssh ${FULLNAME}:1`
@@ -43,10 +45,10 @@ Note that when using the Docker image, `192.168.65.1` routes to localhost on OSX
 ### Send traffic to a specific datacenter
 Movr supports 9 cities at the moment. Configure the load generator to send a certain cities traffic to the appropriate datacenter using the `--city` flag. Here's the breakdown of cities to partitions.
 
-**Partition "us_east"**: (new york, boston, washington dc)
+**Partition "us_east"**: new york, boston, washington dc
 
-**Partition "us_west"** (san francisco, seattle, los angeles)
+**Partition "us_west"**: san francisco, seattle, los angeles
 
-**Partition "eu_west"** (amsterdam, paris, rome)
+**Partition "eu_west"**: amsterdam, paris, rome
 
 Example: `docker run -it --rm natestewart/movr --url 'postgres://root@[US EAST DATACENTER]:26257/movr?sslmode=disable' --city "new york" --city "boston" --city "washington dc"`
