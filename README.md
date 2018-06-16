@@ -17,7 +17,7 @@ Note that when using the Docker image, `192.168.65.1` routes to localhost on OSX
 
 `roachprod pgurl ${FULLNAME} --external` to get urls
 
-`./loadmovr.py --url "[PGURL]/movr?sslmode=disable" --load --enable-ccl-features --reload-tables`
+`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" --load --enable-ccl-features --reload-tables`
 
 ### Add partitions
 `roachprod ssh ${FULLNAME}:1`
@@ -40,3 +40,13 @@ Note that when using the Docker image, `192.168.65.1` routes to localhost on OSX
 
 `echo 'constraints: [+region=europe-west2]' |  ./cockroach zone set movr.users.eu_west --insecure -f -`
 
+### Send traffic to a specific datacenter
+Movr supports 9 cities at the moment. Configure the load generator to send a certain cities traffic to the appropriate datacenter using the `--city` flag. Here's the breakdown of cities to partitions.
+
+**Partition "us_east"**: (new york, boston, washington dc)
+
+**Partition "us_west"** (san francisco, seattle, los angeles)
+
+**Partition "eu_west"** (amsterdam, paris, rome)
+
+Example: `docker run -it --rm natestewart/movr --url 'postgres://root@[US EAST DATACENTER]:26257/movr?sslmode=disable' --city "new york" --city "boston" --city "washington dc"`
