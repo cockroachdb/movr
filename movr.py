@@ -1,7 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import exc
 import traceback
 from faker import Faker
+import psycopg2
 from models import Base, User, Vehicle, Ride
 from generators import MovRGenerator
 import datetime
@@ -12,7 +14,7 @@ import random
 class MovR:
 
     def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False):
-        engine = create_engine(conn_string, convert_unicode=True)
+        engine = create_engine(conn_string, convert_unicode=True, echo=True)
 
         if reload_tables:
             Base.metadata.drop_all(bind=engine)
@@ -44,14 +46,43 @@ class MovR:
 
 
 
-    def start_ride(self, city, rider_id, vehicle_id):
-        r = Ride(city = city, vehicle_city = city, id = MovRGenerator.generate_uuid(),
+    def run_transaction(self, transaction):
+        # create savepoint @todo: https://github.com/cockroachdb/cockroachdb-python/issues/25
+        #self.session.begin_nested()'
+        print "in run txn"
+        self.session.execute("SAVEPOINT cockroach_restart")
+
+        while True:
+            # try the operation
+            try:
+                ret = transaction()
+                self.session.execute("RELEASE SAVEPOINT cockroach_restart") #@todo: does this actually commit? need to see logs
+                self.session.commit() #@todo: without this I get sqlalchemy.exc.InternalError: (psycopg2.InternalError) current transaction is committed, commands ignored until end of transaction block
+                print "committed the txn"
+                return ret
+            except exc.OperationalError as e:
+                print "exception is %s" % e
+                if e.code != psycopg2.errorcodes.SERIALIZATION_FAILURE:
+                    raise e
+                self.session.execute("ROLLBACK TO SAVEPOINT cockroach_restart")
+
+
+    def start_ride_helper(self, city, rider_id, vehicle_id):
+        print "starting ride helper"
+        r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                  rider_id=rider_id, vehicle_id=vehicle_id,
-                 start_address = MovR.fake.address()) #@todo: this should be the address of the vehicle
+                 start_address=MovR.fake.address())  # @todo: this should be the address of the vehicle
         self.session.add(r)
         self.session.query(Vehicle).filter_by(city=city, id=vehicle_id).update({"status": "in_use"})
-        self.session.commit()
+
         return r
+
+    def start_ride(self, city, rider_id, vehicle_id):
+        print "starting ride"
+        r = self.run_transaction(lambda: self.start_ride_helper(city, rider_id, vehicle_id)) #@todo: ask ben how this works. seems like a closure in js
+        print "got ret value"
+        return r
+
 
     def end_ride(self, city, ride_id):
         ride = self.session.query(Ride).filter_by(city = city, id=ride_id).first()
