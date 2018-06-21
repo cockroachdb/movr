@@ -4,7 +4,7 @@ MovR is a fictional ride sharing company. This repo contains datasets and load g
 
 start a local database with `cockroach start --insecure --host localhost --background`
 
-create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"
+create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
 
 Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --load --reload-tables --num-users 100 --num-rides 100 --num-vehicles 10`
 
