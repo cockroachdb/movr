@@ -49,22 +49,18 @@ class MovR:
     def run_transaction(self, transaction):
         # create savepoint @todo: https://github.com/cockroachdb/cockroachdb-python/issues/25
         #self.session.begin_nested()'
-        print "in run txn"
-        self.session.execute("SAVEPOINT cockroach_restart")
-
+        #removed all savepoints because they don't work well with sqlalchemy's implicit transactions.
         while True:
             # try the operation
             try:
                 ret = transaction()
-                self.session.execute("RELEASE SAVEPOINT cockroach_restart") #@todo: does this actually commit? need to see logs
                 self.session.commit() #@todo: without this I get sqlalchemy.exc.InternalError: (psycopg2.InternalError) current transaction is committed, commands ignored until end of transaction block
-                print "committed the txn"
                 return ret
             except exc.OperationalError as e:
                 print "exception is %s" % e
                 if e.code != psycopg2.errorcodes.SERIALIZATION_FAILURE:
                     raise e
-                self.session.execute("ROLLBACK TO SAVEPOINT cockroach_restart")
+                self.session.rollback()
 
 
     def start_ride_helper(self, city, rider_id, vehicle_id):
