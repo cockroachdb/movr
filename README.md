@@ -10,10 +10,13 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 ## Simulate a geo-partitioned MovR deployment  
 
 ### Setup the cluster and load data
+`export FULLNAME="${USER}-test"`
 
 `roachprod create ${FULLNAME} --gce-zones us-west1-b,europe-west2-b,us-east1-b --geo --nodes 9 && crl-stage-binaries ${FULLNAME} all scripts && crl-stage-binaries ${FULLNAME} all release && roachprod start ${FULLNAME} --sequential`
 
-`roachprod pgurl ${FULLNAME} --external` to get urls
+Make a note of the output here; it includes a mapping of hosts to regions. This will be useful when sending certain types of queries to certain regions.
+
+`roachprod pgurl ${FULLNAME} --external` to get urls. Pick a url and use it to replace "[PGURL]" in the line below. 
 
 `docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" --load --enable-ccl-features --reload-tables`
 
