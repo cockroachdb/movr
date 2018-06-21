@@ -18,6 +18,8 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 
 `roachprod create ${FULLNAME} --gce-zones us-west1-b,europe-west2-b,us-east1-b --geo --nodes 9 && crl-stage-binaries ${FULLNAME} all scripts && crl-stage-binaries ${FULLNAME} all release && roachprod start ${FULLNAME} --sequential`
 
+At this stage, if you run into an error that reads `crl-stage-binaries: command not found` you likely have not installed CRL production tools. To fix this, clone github.com/cockroachlabs/production, and put the crl-prod folder on your path. Alternatively, you can execute the crl-stage-binaries script within directly. 
+
 Make a note of the output here; it includes a mapping of hosts to regions. This will be useful when sending certain types of queries to certain regions.
 
 `roachprod pgurl ${FULLNAME} --external` to get urls. Pick a url and use it to replace "[PGURL]" in the line below. 
