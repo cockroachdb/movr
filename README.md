@@ -14,7 +14,7 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 ## Simulate a geo-partitioned MovR deployment  
 
 ### Setup the cluster and load data
-`export ROACHPROD_CLUSTER_NAME="${USER}-test"`
+`export FULLNAME="${USER}-test"`
 
 `roachprod create ${FULLNAME} --gce-zones us-west1-b,europe-west2-b,us-east1-b --geo --nodes 9 && crl-stage-binaries ${FULLNAME} all scripts && crl-stage-binaries ${FULLNAME} all release && roachprod start ${FULLNAME} --sequential`
 
