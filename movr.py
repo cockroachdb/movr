@@ -1,18 +1,22 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import exc
 import traceback
 from faker import Faker
+import psycopg2
 from models import Base, User, Vehicle, Ride
 from generators import MovRGenerator
 import datetime
 import random
-
-#@todo: add query retries
+import time
+import math
 
 class MovR:
 
-    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False):
-        engine = create_engine(conn_string, convert_unicode=True)
+    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False,
+                 echo = False, exponential_txn_backoff = False):
+
+        engine = create_engine(conn_string, convert_unicode=True, echo=echo)
 
         if reload_tables:
             Base.metadata.drop_all(bind=engine)
@@ -20,6 +24,7 @@ class MovR:
         Base.metadata.create_all(bind=engine)
 
         self.session = sessionmaker(bind=engine)()
+        self.exponential_txn_backoff = exponential_txn_backoff
 
         MovR.fake = Faker()
 
@@ -44,29 +49,61 @@ class MovR:
 
 
 
-    def start_ride(self, city, rider_id, vehicle_id):
-        r = Ride(city = city, vehicle_city = city, id = MovRGenerator.generate_uuid(),
+    def run_transaction(self, transaction):
+        # we can't use the savepoint approach due to the way sqlalchemy handles transactions
+
+        attempt_number = 0
+        while True:
+            try:
+                ret = transaction()
+                self.session.commit() #@todo: without this I get sqlalchemy.exc.InternalError: (psycopg2.InternalError) current transaction is committed, commands ignored until end of transaction block
+                return ret
+            except exc.OperationalError as e:
+
+                if type(e.orig) != psycopg2.extensions.TransactionRollbackError:
+                    print "caught non-retryable error: %s" % type(e.orig)
+                    raise e
+
+                print "retrynig txn. attempt #%d" % attempt_number
+                self.session.rollback()
+                if self.exponential_txn_backoff:
+                    time.sleep(.001 * math.pow(2,attempt_number))
+                attempt_number+=1
+
+
+
+    def start_ride_helper(self, city, rider_id, vehicle_id):
+        r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                  rider_id=rider_id, vehicle_id=vehicle_id,
-                 start_address = MovR.fake.address()) #@todo: this should be the address of the vehicle
+                 start_address=MovR.fake.address())  # @todo: this should be the address of the vehicle
         self.session.add(r)
         self.session.query(Vehicle).filter_by(city=city, id=vehicle_id).update({"status": "in_use"})
-        self.session.commit()
+
         return r
 
-    def end_ride(self, city, ride_id):
-        ride = self.session.query(Ride).filter_by(city = city, id=ride_id).first()
-        ride.end_address = MovR.fake.address() #@todo: this should update the address of the vehicle
+    def start_ride(self, city, rider_id, vehicle_id):
+        return self.run_transaction(lambda: self.start_ride_helper(city, rider_id, vehicle_id)) #@todo: ask ben how this works. seems like a closure in js
+
+
+    def end_ride_helper(self, city, ride_id):
+        ride = self.session.query(Ride).filter_by(city=city, id=ride_id).first()
+        ride.end_address = MovR.fake.address()  # @todo: this should update the address of the vehicle
         ride.revenue = MovRGenerator.generate_revenue()
         ride.end_time = datetime.datetime.now()
-        self.session.query(Vehicle).filter_by(city = city, id = ride.vehicle_id).update({"status": "available"})
-        self.session.commit()
+        self.session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).update({"status": "available"})
+
+    def end_ride(self, city, ride_id):
+        self.run_transaction(lambda: self.end_ride_helper(city, ride_id))
+
+
+    def add_user_helper(self, city):
+        u = User(city=city, id=MovRGenerator.generate_uuid(), name=MovR.fake.name(),
+                 address=MovR.fake.address(), credit_card=MovR.fake.credit_card_number())
+        self.session.add(u)
+        return u
 
     def add_user(self, city):
-        u = User(city=city, id = MovRGenerator.generate_uuid(), name = MovR.fake.name(),
-                      address = MovR.fake.address(), credit_card = MovR.fake.credit_card_number())
-        self.session.add(u)
-        self.session.commit()
-        return u
+        return self.run_transaction(lambda: self.add_user_helper(city))
 
 
     def add_rides(self, num_rides, city):
@@ -120,7 +157,7 @@ class MovR:
     def get_active_rides(self, limit=None):
         return self.session.query(Ride).filter_by(end_time = None).limit(limit).all()
 
-    def add_vehicle(self, city, user_id):
+    def add_vehicle_helper(self, city, user_id):
         vehicle_type = MovRGenerator.generate_random_vehicle()
 
         vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type,
@@ -128,9 +165,11 @@ class MovR:
                           ext=MovRGenerator.generate_vehicle_metadata(vehicle_type))
 
         self.session.add(vehicle)
-        self.session.commit()
 
         return vehicle
+
+    def add_vehicle(self, city, user_id):
+        return self.run_transaction(lambda: self.add_vehicle_helper(city, user_id))
 
 
 
