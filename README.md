@@ -18,11 +18,13 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 
 `roachprod create ${FULLNAME} --gce-zones us-west1-b,europe-west2-b,us-east1-b --geo --nodes 9 && crl-stage-binaries ${FULLNAME} all scripts && crl-stage-binaries ${FULLNAME} all release && roachprod start ${FULLNAME} --sequential`
 
-At this stage, if you run into an error that reads `crl-stage-binaries: command not found` you likely have not installed CRL production tools. To fix this, clone github.com/cockroachlabs/production, and put the crl-prod folder on your path. You might need to run `. ~/.bash_profile` to activate it and ensure you do have it correctly installed. Run crl- and if the various crl commands show up, you have it correctly installed. Re-run the create roachprod command above. 
+At this stage, there are a number of errors you may run into depending on if you've used CRL tools before: 
 
-You might also run into a message that reads `RELEASE_VERSION is required` which simply means you need to specify which version of CockroachDB you want to use. You can address this by running `RELEASE_VERSION=v2.0.1 crl-stage-binaries user-test-2 all release` with whichever release version you plan on using. 
+-If you run into an error that reads `crl-stage-binaries: command not found` you likely have not installed CRL production tools. To fix this, clone github.com/cockroachlabs/production, and put the crl-prod folder on your path. You might need to run `. ~/.bash_profile` to activate it and ensure you do have it correctly installed. Run crl- and if the various crl commands show up, you have it correctly installed. Re-run the create roachprod command above. 
 
-If you run into a `Permission denied (publickey)` error, you will need to make sure you've added your SSH key and you're signed into Google SDK `ssh-add ~/.ssh/google_compute_engine` and `gcloud auth list` and `gcloud auth login` 
+-You might also run into a message that reads `RELEASE_VERSION is required` which simply means you need to specify which version of CockroachDB you want to use. You can address this by running `RELEASE_VERSION=v2.0.1 crl-stage-binaries user-test-2 all release` with whichever release version you plan on using. 
+
+-If you run into a `Permission denied (publickey)` error, you will need to make sure you've added your SSH key and you're signed into Google SDK `ssh-add ~/.ssh/google_compute_engine` and `gcloud auth list` and `gcloud auth login` 
 
 Make a note of the output here; it includes a mapping of hosts to regions. This will be useful when sending certain types of queries to certain regions.
 
