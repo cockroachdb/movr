@@ -8,6 +8,8 @@ from models import Base, User, Vehicle, Ride
 from generators import MovRGenerator
 import datetime
 import random
+import time
+import math
 
 #@todo: add query retries
 
@@ -50,6 +52,7 @@ class MovR:
         # create savepoint @todo: https://github.com/cockroachdb/cockroachdb-python/issues/25
         #self.session.begin_nested()'
         #removed all savepoints because they don't work well with sqlalchemy's implicit transactions.
+        attempt_number = 0
         while True:
             # try the operation
             try:
@@ -62,8 +65,11 @@ class MovR:
                     print "caught non-retryable error: %s" % type(e.orig)
                     raise e
 
-                print "retrynig txn"
+                print "retrynig txn. attempt #%d" % attempt_number
                 self.session.rollback()
+                time.sleep(.001 * math.pow(2,attempt_number))
+                attempt_number+=1
+
 
 
     def start_ride_helper(self, city, rider_id, vehicle_id):
