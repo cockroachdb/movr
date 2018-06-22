@@ -11,11 +11,11 @@ import random
 import time
 import math
 
-#@todo: add query retries
-
 class MovR:
 
-    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False, echo = False):
+    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False,
+                 echo = False, exponential_txn_backoff = False):
+
         engine = create_engine(conn_string, convert_unicode=True, echo=echo)
 
         if reload_tables:
@@ -24,6 +24,7 @@ class MovR:
         Base.metadata.create_all(bind=engine)
 
         self.session = sessionmaker(bind=engine)()
+        self.exponential_txn_backoff = exponential_txn_backoff
 
         MovR.fake = Faker()
 
@@ -49,12 +50,10 @@ class MovR:
 
 
     def run_transaction(self, transaction):
-        # create savepoint @todo: https://github.com/cockroachdb/cockroachdb-python/issues/25
-        #self.session.begin_nested()'
-        #removed all savepoints because they don't work well with sqlalchemy's implicit transactions.
+        # we can't use the savepoint approach due to the way sqlalchemy handles transactions
+
         attempt_number = 0
         while True:
-            # try the operation
             try:
                 ret = transaction()
                 self.session.commit() #@todo: without this I get sqlalchemy.exc.InternalError: (psycopg2.InternalError) current transaction is committed, commands ignored until end of transaction block
@@ -67,7 +66,8 @@ class MovR:
 
                 print "retrynig txn. attempt #%d" % attempt_number
                 self.session.rollback()
-                time.sleep(.001 * math.pow(2,attempt_number))
+                if self.exponential_txn_backoff:
+                    time.sleep(.001 * math.pow(2,attempt_number))
                 attempt_number+=1
 
 
