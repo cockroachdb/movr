@@ -12,12 +12,19 @@ MOVR_PARTITIONS = {
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
-def load_movr_data(movr, num_users, num_vehicles, num_rides):
+def load_movr_data(movr, num_users, num_vehicles, num_rides, cities = None):
 
-    #get all cities
-    cities = []
+    all_cities = []
     for region in MOVR_PARTITIONS:
-        cities += MOVR_PARTITIONS[region]
+        all_cities += MOVR_PARTITIONS[region]
+
+    if cities:
+        for city in cities:
+            if city not in all_cities:
+                print "%s is not a supported city. Cities: %s" % (city, all_cities)
+                sys.exit(1)
+    else:
+        cities = all_cities
 
     for city in cities:
         print "populating %s" % city
@@ -79,6 +86,8 @@ def simulate_movr_load(movr, cities):
             break
 
 
+
+
 if __name__ == '__main__':
     #@todo: add subparses for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
     parser = argparse.ArgumentParser(description='CLI for MovR.')
@@ -100,7 +109,9 @@ if __name__ == '__main__':
         print "The connection string needs to point to a database named 'movr'"
         sys.exit(1)
 
-    movr = MovR(args.conn_string.replace("postgres://", "cockroachdb://"), MOVR_PARTITIONS,
+    conn_string = args.conn_string.replace("postgres://", "cockroachdb://")
+    conn_string = args.conn_string.replace("postgresql://", "cockroachdb://")
+    movr = MovR(conn_string, MOVR_PARTITIONS,
                 is_enterprise=args.is_enterprise, reload_tables=args.reload_tables)
 
     print "connected to movr database @ %s" % args.conn_string
@@ -116,7 +127,7 @@ if __name__ == '__main__':
     if args.reload_tables or args.load:
         print "loading movr data with %d users, %d vehicles, and %d rides" % \
               (args.num_users, args.num_vehicles, args.num_rides)
-        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides)
+        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities = cities)
 
     else:
         print "simulating movr load for cities %s" % cities

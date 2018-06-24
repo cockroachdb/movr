@@ -11,5 +11,5 @@ RUN pip install sqlalchemy && pip install cockroachdb && pip install names && \
     pip install faker && pip install sqlalchemy-utils && pip install psycopg2-binary && \
     pip install cockroachdb
 
-ENTRYPOINT [ "python", "./loadmovr.py"]
+ENTRYPOINT [ "python", "-u", "./loadmovr.py"]
 
