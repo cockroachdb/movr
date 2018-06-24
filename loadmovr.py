@@ -89,7 +89,7 @@ def simulate_movr_load(movr, cities):
 
 
 if __name__ == '__main__':
-    #@todo: add subparses for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
+    #@todo: add subparsers for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
     parser = argparse.ArgumentParser(description='CLI for MovR.')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
@@ -102,7 +102,9 @@ if __name__ == '__main__':
     parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
                         help='Drop and reload MovR tables. Use with --load')
     parser.add_argument('--enable-ccl-features', dest='is_enterprise', action='store_true',
-                        help='set this to true if your cluster has an enterprise license')
+                        help='set this if your cluster has an enterprise license')
+    parser.add_argument('--exponential-txn-backoff', dest='exponential_txn_backoff', action='store_true',
+                        help='set this if you want retriable transactions to backoff exponentially')
     args = parser.parse_args()
 
     if args.conn_string.find("/movr") < 0:
@@ -112,7 +114,9 @@ if __name__ == '__main__':
     conn_string = args.conn_string.replace("postgres://", "cockroachdb://")
     conn_string = args.conn_string.replace("postgresql://", "cockroachdb://")
     movr = MovR(conn_string, MOVR_PARTITIONS,
-                is_enterprise=args.is_enterprise, reload_tables=args.reload_tables)
+                is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
+                exponential_txn_backoff=args.exponential_txn_backoff)
+
 
     print "connected to movr database @ %s" % args.conn_string
 
