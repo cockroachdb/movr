@@ -2,6 +2,7 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Index, String, DateTime, Float, \
     PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
+from sqlalchemy.types import DECIMAL
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 import datetime
@@ -36,7 +37,7 @@ class Ride(Base):
     end_address = Column(String)
     start_time = Column(DateTime, default=datetime.datetime.now)
     end_time = Column(DateTime)
-    revenue = Column(Float)
+    revenue = Column(DECIMAL(10,2))
     PrimaryKeyConstraint(city, id)
     __table_args__ = (ForeignKeyConstraint([city, rider_id], ["users.city", "users.id"]),) #this requires an index or it fails silently:  https://github.com/cockroachdb/cockroach/issues/22253
     __table_args__ = (ForeignKeyConstraint([vehicle_city, vehicle_id], ["vehicles.city", "vehicles.id"]),)
