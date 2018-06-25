@@ -112,7 +112,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     conn_string = args.conn_string.replace("postgres://", "cockroachdb://")
-    conn_string = args.conn_string.replace("postgresql://", "cockroachdb://")
+    conn_string = conn_string.replace("postgresql://", "cockroachdb://")
+    
     movr = MovR(conn_string, MOVR_PARTITIONS,
                 is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
                 exponential_txn_backoff=args.exponential_txn_backoff)
