@@ -12,19 +12,17 @@ MOVR_PARTITIONS = {
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
-def load_movr_data(movr, num_users, num_vehicles, num_rides, cities = None):
+ALL_CITIES = []
+for region in MOVR_PARTITIONS:
+    ALL_CITIES += MOVR_PARTITIONS[region]
 
-    all_cities = []
-    for region in MOVR_PARTITIONS:
-        all_cities += MOVR_PARTITIONS[region]
+def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
 
-    if cities:
-        for city in cities:
-            if city not in all_cities:
-                print "%s is not a supported city. Cities: %s" % (city, all_cities)
-                sys.exit(1)
-    else:
-        cities = all_cities
+    for city in cities:
+        if city not in ALL_CITIES:
+            print "%s is not a supported city. Cities: %s" % (city, all_cities)
+            sys.exit(1)
+
 
     for city in cities:
         print "populating %s" % city
@@ -121,15 +119,16 @@ if __name__ == '__main__':
 
     print "connected to movr database @ %s" % args.conn_string
 
-    cities = ['new york'] if args.city == None else args.city
+
+    cities = ALL_CITIES if args.city == None else args.city
 
     if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
         print "The number of objects to generate must be > 0"
         sys.exit(1)
 
 
-
     if args.reload_tables or args.load:
+        print "loading cities %s" % cities
         print "loading movr data with %d users, %d vehicles, and %d rides" % \
               (args.num_users, args.num_vehicles, args.num_rides)
         load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities = cities)
