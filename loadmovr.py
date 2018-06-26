@@ -62,17 +62,18 @@ def simulate_movr_load(movr, cities):
 
     active_rides =  movr.get_active_rides()
 
+    #@todo: it looks like keeping movr objects in arrays is causing too many queries from the ORM.
     while True:
         try:
             active_city = random.choice(cities)
             if random.random() < .01:
-                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new login
+                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
             elif random.random() < .15:
                 movr.get_vehicles(active_city,25) #simulate user loading screen
-            elif random.random() < .001:
+            elif random.random() < .005:
                 movr_objects[active_city]["vehicles"].append(
                     movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"]).id)) #add vehicles
-            elif random.random() < .42:
+            elif random.random() < .5:
                 ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"]).id,
                                        random.choice(movr_objects[active_city]["vehicles"]).id)
                 active_rides.append(ride)
@@ -103,6 +104,7 @@ if __name__ == '__main__':
                         help='set this if your cluster has an enterprise license')
     parser.add_argument('--exponential-txn-backoff', dest='exponential_txn_backoff', action='store_true',
                         help='set this if you want retriable transactions to backoff exponentially')
+    parser.add_argument('--echo-sql', dest='echo_sql', action='store_true', help='set this if you want to print all executed SQL statements')
     args = parser.parse_args()
 
     if args.conn_string.find("/movr") < 0:
@@ -114,7 +116,7 @@ if __name__ == '__main__':
     
     movr = MovR(conn_string, MOVR_PARTITIONS,
                 is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
-                exponential_txn_backoff=args.exponential_txn_backoff)
+                exponential_txn_backoff=args.exponential_txn_backoff, echo=args.echo_sql)
 
 
     print "connected to movr database @ %s" % args.conn_string
