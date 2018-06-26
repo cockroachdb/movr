@@ -12,19 +12,17 @@ MOVR_PARTITIONS = {
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
-def load_movr_data(movr, num_users, num_vehicles, num_rides, cities = None):
+ALL_CITIES = []
+for region in MOVR_PARTITIONS:
+    ALL_CITIES += MOVR_PARTITIONS[region]
 
-    all_cities = []
-    for region in MOVR_PARTITIONS:
-        all_cities += MOVR_PARTITIONS[region]
+def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
 
-    if cities:
-        for city in cities:
-            if city not in all_cities:
-                print "%s is not a supported city. Cities: %s" % (city, all_cities)
-                sys.exit(1)
-    else:
-        cities = all_cities
+    for city in cities:
+        if city not in ALL_CITIES:
+            print "%s is not a supported city. Cities: %s" % (city, all_cities)
+            sys.exit(1)
+
 
     for city in cities:
         print "populating %s" % city
@@ -64,17 +62,18 @@ def simulate_movr_load(movr, cities):
 
     active_rides =  movr.get_active_rides()
 
+    #@todo: it looks like keeping movr objects in arrays is causing too many queries from the ORM.
     while True:
         try:
             active_city = random.choice(cities)
             if random.random() < .01:
-                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new login
+                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
             elif random.random() < .15:
                 movr.get_vehicles(active_city,25) #simulate user loading screen
-            elif random.random() < .001:
+            elif random.random() < .005:
                 movr_objects[active_city]["vehicles"].append(
                     movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"]).id)) #add vehicles
-            elif random.random() < .42:
+            elif random.random() < .5:
                 ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"]).id,
                                        random.choice(movr_objects[active_city]["vehicles"]).id)
                 active_rides.append(ride)
@@ -105,6 +104,7 @@ if __name__ == '__main__':
                         help='set this if your cluster has an enterprise license')
     parser.add_argument('--exponential-txn-backoff', dest='exponential_txn_backoff', action='store_true',
                         help='set this if you want retriable transactions to backoff exponentially')
+    parser.add_argument('--echo-sql', dest='echo_sql', action='store_true', help='set this if you want to print all executed SQL statements')
     args = parser.parse_args()
 
     if args.conn_string.find("/movr") < 0:
@@ -116,20 +116,21 @@ if __name__ == '__main__':
     
     movr = MovR(conn_string, MOVR_PARTITIONS,
                 is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
-                exponential_txn_backoff=args.exponential_txn_backoff)
+                exponential_txn_backoff=args.exponential_txn_backoff, echo=args.echo_sql)
 
 
     print "connected to movr database @ %s" % args.conn_string
 
-    cities = ['new york'] if args.city == None else args.city
+
+    cities = ALL_CITIES if args.city == None else args.city
 
     if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
         print "The number of objects to generate must be > 0"
         sys.exit(1)
 
 
-
     if args.reload_tables or args.load:
+        print "loading cities %s" % cities
         print "loading movr data with %d users, %d vehicles, and %d rides" % \
               (args.num_users, args.num_vehicles, args.num_rides)
         load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities = cities)

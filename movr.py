@@ -73,6 +73,7 @@ class MovR:
 
 
     def start_ride_helper(self, city, rider_id, vehicle_id):
+        #@todo: fake data should ideally be completely separated from MovR the class
         r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                  rider_id=rider_id, vehicle_id=vehicle_id,
                  start_address=MovR.fake.address())  # @todo: this should be the address of the vehicle
@@ -115,12 +116,14 @@ class MovR:
         for chunk in range(0, num_rides, chunk_size):
             rides = []
             for i in range(chunk, min(chunk + chunk_size, num_rides)):
+                start_time = datetime.datetime.now() - datetime.timedelta(days = random.randint(0,30))
                 rides.append(Ride(id = MovRGenerator.generate_uuid(), city = city, vehicle_city = city,
                  rider_id=random.choice(users).id, vehicle_id=random.choice(vehicles).id,
+                 start_time = start_time,
                  start_address = MovR.fake.address(),
                  end_address = MovR.fake.address(),
                  revenue = MovRGenerator.generate_revenue(),
-                 end_time=datetime.datetime.now()))
+                 end_time=start_time + datetime.timedelta(minutes = random.randint(0,60))))
             self.session.bulk_save_objects(rides)
             self.session.commit()
 

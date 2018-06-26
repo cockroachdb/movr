@@ -10,6 +10,10 @@ Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://ro
 
 Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --city "new york" --city "boston"`
 
+## Pre-build datasets
+
+- [MovR 100k](https://s3-us-west-1.amazonaws.com/cockroachdb-movr/datasets/movr-100k.sql)
+- [MovR 100k partitioned](https://s3-us-west-1.amazonaws.com/cockroachdb-movr/datasets/movr-100k-partitioned.sql)
 
 ## Simulate a geo-partitioned MovR deployment  
 
