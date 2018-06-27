@@ -20,7 +20,7 @@ def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
 
     for city in cities:
         if city not in ALL_CITIES:
-            print "%s is not a supported city. Cities: %s" % (city, all_cities)
+            print "%s is not a supported city. Cities: %s" % (city, ALL_CITIES)
             sys.exit(1)
 
 
@@ -49,7 +49,7 @@ def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
 
     return
 
-def simulate_movr_load(movr, cities):
+def simulate_movr_load(movr, cities, read_percentage):
     #note this is all in memory so be careful
 
     movr_objects = {}
@@ -66,11 +66,12 @@ def simulate_movr_load(movr, cities):
     while True:
         try:
             active_city = random.choice(cities)
-            if random.random() < .01:
-                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
-            elif random.random() < .15:
+            #@todo: need to work out the probability distribution math here. Use https://docs.scipy.org/doc/numpy/reference/generated/numpy.random.choice.html#numpy.random.choice
+            if random.random() < read_percentage:
                 movr.get_vehicles(active_city,25) #simulate user loading screen
-            elif random.random() < .005:
+            elif random.random() < .1:
+                movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
+            elif random.random() < .1:
                 movr_objects[active_city]["vehicles"].append(
                     movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"]).id)) #add vehicles
             elif random.random() < .5:
@@ -105,7 +106,13 @@ if __name__ == '__main__':
     parser.add_argument('--exponential-txn-backoff', dest='exponential_txn_backoff', action='store_true',
                         help='set this if you want retriable transactions to backoff exponentially')
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true', help='set this if you want to print all executed SQL statements')
+    parser.add_argument('--read-percentage', dest='read_percentage', type=float, help='Value between 0-1 indicating how many reads to perform as a percentage of overall traffic', default=.9)
+
     args = parser.parse_args()
+
+    if args.read_percentage < 0 or args.read_percentage > 1:
+        print "read percentage must be between 0 and 1"
+        sys.exit(1)
 
     if args.conn_string.find("/movr") < 0:
         print "The connection string needs to point to a database named 'movr'"
@@ -137,7 +144,7 @@ if __name__ == '__main__':
 
     else:
         print "simulating movr load for cities %s" % cities
-        simulate_movr_load(movr, cities)
+        simulate_movr_load(movr, cities, args.read_percentage)
 
 
 
