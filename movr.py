@@ -78,7 +78,8 @@ class MovR:
                  rider_id=rider_id, vehicle_id=vehicle_id,
                  start_address=MovR.fake.address())  # @todo: this should be the address of the vehicle
         self.session.add(r)
-        self.session.query(Vehicle).filter_by(city=city, id=vehicle_id).update({"status": "in_use"})
+        v = self.session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
+        v.status = "in_use"
 
         return r
 
@@ -91,7 +92,8 @@ class MovR:
         ride.end_address = MovR.fake.address()  # @todo: this should update the address of the vehicle
         ride.revenue = MovRGenerator.generate_revenue()
         ride.end_time = datetime.datetime.now()
-        self.session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).update({"status": "available"})
+        v = self.session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
+        v.status = "available"
 
     def end_ride(self, city, ride_id):
         self.run_transaction(lambda: self.end_ride_helper(city, ride_id))
