@@ -21,6 +21,7 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 `export FULLNAME="${USER}-test"`
 
 Note that you need the Cockroach dev license and CRL prod tools downloaded prior to starting. 
+
 `export COCKROACH_DEV_LICENSE='crl-0-EJL04ukFGAEiI0NvY2tyb2FjaCBMYWJzIC0gUHJvZHVjdGlvbiBUZXN0aW5n'`
 
 `ssh-add ~/.ssh/google_compute_engine`
