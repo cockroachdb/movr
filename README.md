@@ -22,11 +22,10 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 
 Note that you need the Cockroach dev license and CRL prod tools downloaded prior to starting. 
 `export COCKROACH_DEV_LICENSE='crl-0-EJL04ukFGAEiI0NvY2tyb2FjaCBMYWJzIC0gUHJvZHVjdGlvbiBUZXN0aW5n'`
+
 `ssh-add ~/.ssh/google_compute_engine`
 
 `roachprod create ${FULLNAME} --gce-zones us-west1-b,europe-west2-b,us-east1-b --geo --nodes 9 && crl-stage-binaries ${FULLNAME} all scripts && crl-stage-binaries ${FULLNAME} all release && roachprod start ${FULLNAME} --sequential`
-
-At this stage, there are a number of errors you may run into depending on if you've used CRL tools before: 
 
 -If you run into an error that reads `crl-stage-binaries: command not found` you likely have not installed CRL production tools. To fix this, clone github.com/cockroachlabs/production, and put the crl-prod folder on your path. You might need to run `. ~/.bash_profile` to activate it and ensure you do have it correctly installed. Run crl- and if the various crl commands show up, you have it correctly installed. Re-run the create roachprod command above. 
 
