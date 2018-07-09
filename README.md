@@ -18,6 +18,8 @@ Generating load for cities: `docker run -it --rm natestewart/movr --url "postgre
 ## Simulate a geo-partitioned MovR deployment  
 
 ### Setup the cluster and load data
+To complete this section, you must have [roachprod](https://github.com/cockroachdb/roachprod) configured. This dependency will be removed before this is opensourced.
+
 `export FULLNAME="${USER}-test"`
 
 Note that you need the Cockroach dev license and CRL prod tools downloaded prior to starting. 
