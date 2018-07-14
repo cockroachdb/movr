@@ -22,6 +22,8 @@ To complete this section, you must have [roachprod](https://github.com/cockroach
 
 `export FULLNAME="${USER}-test"`
 
+`export RELEASE_VERSION='v2.1.0-alpha.20180702'`
+
 Note that you need the Cockroach dev license and CRL prod tools downloaded prior to starting. 
 
 `export COCKROACH_DEV_LICENSE='crl-0-EJL04ukFGAEiI0NvY2tyb2FjaCBMYWJzIC0gUHJvZHVjdGlvbiBUZXN0aW5n'`
