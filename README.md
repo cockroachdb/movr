@@ -38,6 +38,8 @@ Make a note of the output here; it includes a mapping of hosts to regions. This 
 
 `roachprod pgurl ${FULLNAME} --external` to get urls. Pick a url and use it to replace "[PGURL]" in the line below. 
 
+Then create the database movr with `cockroach sql --insecure --url [PGURL] -e "create database movr;"`
+
 `docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" --load --enable-ccl-features --reload-tables`
 
 *note we start movr with the `--enable-ccl-features` flag*
