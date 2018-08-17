@@ -6,23 +6,14 @@ import random
 import sys
 import time
 
-MOVR_PARTITIONS = {
+DEFAULT_PARTITION_MAP = {
     "us_east": ["new york", "boston", "washington dc"],
     "us_west": ["san francisco", "seattle", "los angeles"],
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
-ALL_CITIES = []
-for region in MOVR_PARTITIONS:
-    ALL_CITIES += MOVR_PARTITIONS[region]
 
 def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
-
-    for city in cities:
-        if city not in ALL_CITIES:
-            print "%s is not a supported city. Cities: %s" % (city, ALL_CITIES)
-            sys.exit(1)
-
 
     for city in cities:
         print "populating %s" % city
@@ -56,7 +47,7 @@ def simulate_movr_load(movr, cities, read_percentage):
     for city in cities:
         movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city) }
         if len(movr_objects[city]["vehicles"]) == 0 or len(movr_objects[city]["users"]) == 0:
-            print "must have users and vehicles in the movr database to generte load. try running with the --load command."
+            print "must have users and vehicles for '%s' in the movr database to generte load. try running with the --load command." % city
             sys.exit(1)
 
 
@@ -86,7 +77,26 @@ def simulate_movr_load(movr, cities, read_percentage):
             break
 
 
+def extract_partition_pairs_from_cli(pair_list):
+    if pair_list is None:
+        return DEFAULT_PARTITION_MAP
 
+    partition_pairs = {}
+
+    for partition_pair in pair_list:
+        pair = partition_pair.split(":")
+        if len(pair) < 1:
+            pair = ["default"].append(pair[0])
+        else:
+            pair = [pair[0], ":".join(pair[1:])]  # if there are many semicolons convert this to only two items
+
+
+        if pair[0] in partition_pairs:
+            partition_pairs[pair[0]].append(pair[1])
+        else:
+            partition_pairs[pair[0]] = [pair[1]]
+
+    return partition_pairs
 
 if __name__ == '__main__':
     #@todo: add subparsers for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
@@ -96,8 +106,10 @@ if __name__ == '__main__':
     parser.add_argument('--num-users', dest='num_users', type=int, default=50)
     parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
     parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
+    parser.add_argument('--partition-by', dest='partition_pair', action='append',
+                        help='Pairs in the form <partition>:<city_id> that will be used to enable geo-partitioning. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
     parser.add_argument('--city', dest='city', action='append',
-                        help='The names of the cities to use with generating load.')
+                        help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
     parser.add_argument('--load', dest='load', action='store_true', help='Load data into the MovR database')
     parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
                         help='Drop and reload MovR tables. Use with --load')
@@ -120,16 +132,23 @@ if __name__ == '__main__':
 
     conn_string = args.conn_string.replace("postgres://", "cockroachdb://")
     conn_string = conn_string.replace("postgresql://", "cockroachdb://")
+
+    # population partitions
+    partition_city_map = extract_partition_pairs_from_cli(args.partition_pair)
+
     
-    movr = MovR(conn_string, MOVR_PARTITIONS,
+    movr = MovR(conn_string, partition_city_map,
                 is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
                 exponential_txn_backoff=args.exponential_txn_backoff, echo=args.echo_sql)
 
 
     print "connected to movr database @ %s" % args.conn_string
 
+    all_cities = []
+    for partition in partition_city_map:
+        all_cities += partition_city_map[partition]
 
-    cities = ALL_CITIES if args.city == None else args.city
+    cities = all_cities if args.city is None else args.city
 
     if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
         print "The number of objects to generate must be > 0"
@@ -140,7 +159,7 @@ if __name__ == '__main__':
         print "loading cities %s" % cities
         print "loading movr data with %d users, %d vehicles, and %d rides" % \
               (args.num_users, args.num_vehicles, args.num_rides)
-        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities = cities)
+        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities)
 
     else:
         print "simulating movr load for cities %s" % cities
