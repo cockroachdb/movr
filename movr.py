@@ -13,7 +13,7 @@ import math
 
 class MovR:
 
-    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False,
+    def __init__(self, conn_string, partition_map, enable_geo_partitioning = False, reload_tables = False,
                  echo = False, exponential_txn_backoff = False):
 
         engine = create_engine(conn_string, convert_unicode=True, echo=echo)
@@ -29,7 +29,7 @@ class MovR:
         MovR.fake = Faker()
 
         #setup geo-partitioning if this is an enterprise cluster
-        if is_enterprise:
+        if enable_geo_partitioning:
             partition_string = ""
             first_region = True
             for region in partition_map:
