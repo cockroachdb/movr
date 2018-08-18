@@ -64,15 +64,16 @@ def simulate_movr_load(movr, cities, read_percentage):
                 movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
             elif random.random() < .1:
                 movr_objects[active_city]["vehicles"].append(
-                    movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"]).id)) #add vehicles
+                    movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"])['id'])) #add vehicles
             elif random.random() < .5:
-                ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"]).id,
-                                       random.choice(movr_objects[active_city]["vehicles"]).id)
+                ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
+                                       random.choice(movr_objects[active_city]["vehicles"])['id'])
+
                 active_rides.append(ride)
             else:
                 if len(active_rides):
                     ride = active_rides.pop()
-                    movr.end_ride(ride.city, ride.id)
+                    movr.end_ride(ride['city'], ride['id'])
         except KeyboardInterrupt:
             break
 
@@ -103,35 +104,35 @@ def setup_parser():
     subparsers = parser.add_subparsers(dest='subparser_name')
 
     load_parser = subparsers.add_parser('load', help="load movr data into a database")
-    load_parser.add_argument('--num-users', dest='num_users', type=int, default=50)
-    load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
-    load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
+    load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
+                             help='The number of random users to add to the dataset')
+    load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
+                             help='The number of random vehicles to add to the dataset')
+    load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500,
+                             help='The number of random rides to add to the dataset')
     load_parser.add_argument('--partition-by', dest='partition_pair', action='append',
                              help='Pairs in the form <partition>:<city_id> that will be used to enable geo-partitioning. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
-                             help='set this if your cluster has an enterprise license')
+                             help='Set this if your cluster has an enterprise license (https://cockroa.ch/2BoAlgB) and you want to use geo-partitioning functionality (https://cockroa.ch/2wd96zF)')
     load_parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
-                             help='Drop and reload MovR tables. Use with --load')
+                             help='Drop and reload MovR tables')
 
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
-    run_parser.add_argument('--read-percentage', dest='read_percentage', type=float,
-                            help='Value between 0-1 indicating how many reads to perform as a percentage of overall traffic',
+    run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
+                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.9)
 
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
+
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
                         help='set this if you want to print all executed SQL statements')
-
 
     return parser
 
 if __name__ == '__main__':
-    # https://chase-seibert.github.io/blog/2014/03/21/python-multilevel-argparse.html
-    #@todo: add subparsers for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
-
     args = setup_parser().parse_args()
 
     if args.conn_string.find("/movr") < 0:
