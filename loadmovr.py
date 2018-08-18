@@ -98,33 +98,41 @@ def extract_partition_pairs_from_cli(pair_list):
 
     return partition_pairs
 
-if __name__ == '__main__':
-    #@todo: add subparsers for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
+def setup_parser():
     parser = argparse.ArgumentParser(description='CLI for MovR.')
+    subparsers = parser.add_subparsers(dest='subparser_name')
+
+    load_parser = subparsers.add_parser('load', help="load movr data into a database")
+    load_parser.add_argument('--num-users', dest='num_users', type=int, default=50)
+    load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
+    load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
+    load_parser.add_argument('--partition-by', dest='partition_pair', action='append',
+                             help='Pairs in the form <partition>:<city_id> that will be used to enable geo-partitioning. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
+    load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
+                             help='set this if your cluster has an enterprise license')
+    load_parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
+                             help='Drop and reload MovR tables. Use with --load')
+
+    run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
+    run_parser.add_argument('--city', dest='city', action='append',
+                            help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
+    run_parser.add_argument('--read-percentage', dest='read_percentage', type=float,
+                            help='Value between 0-1 indicating how many reads to perform as a percentage of overall traffic',
+                            default=.9)
+
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
-    parser.add_argument('--num-users', dest='num_users', type=int, default=50)
-    parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
-    parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
-    parser.add_argument('--partition-by', dest='partition_pair', action='append',
-                        help='Pairs in the form <partition>:<city_id> that will be used to enable geo-partitioning. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
-    parser.add_argument('--city', dest='city', action='append',
-                        help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
-    parser.add_argument('--load', dest='load', action='store_true', help='Load data into the MovR database')
-    parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
-                        help='Drop and reload MovR tables. Use with --load')
-    parser.add_argument('--enable-ccl-features', dest='is_enterprise', action='store_true',
-                        help='set this if your cluster has an enterprise license')
-    parser.add_argument('--exponential-txn-backoff', dest='exponential_txn_backoff', action='store_true',
-                        help='set this if you want retriable transactions to backoff exponentially')
-    parser.add_argument('--echo-sql', dest='echo_sql', action='store_true', help='set this if you want to print all executed SQL statements')
-    parser.add_argument('--read-percentage', dest='read_percentage', type=float, help='Value between 0-1 indicating how many reads to perform as a percentage of overall traffic', default=.9)
+    parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
+                        help='set this if you want to print all executed SQL statements')
 
-    args = parser.parse_args()
 
-    if args.read_percentage < 0 or args.read_percentage > 1:
-        print "read percentage must be between 0 and 1"
-        sys.exit(1)
+    return parser
+
+if __name__ == '__main__':
+    # https://chase-seibert.github.io/blog/2014/03/21/python-multilevel-argparse.html
+    #@todo: add subparsers for loadgen: https://stackoverflow.com/questions/10448200/how-to-parse-multiple-nested-sub-commands-using-python-argparse
+
+    args = setup_parser().parse_args()
 
     if args.conn_string.find("/movr") < 0:
         print "The connection string needs to point to a database named 'movr'"
@@ -134,12 +142,13 @@ if __name__ == '__main__':
     conn_string = conn_string.replace("postgresql://", "cockroachdb://")
 
     # population partitions
-    partition_city_map = extract_partition_pairs_from_cli(args.partition_pair)
+    partition_city_map = extract_partition_pairs_from_cli(args.partition_pair if args.subparser_name=='load' else None)
 
-    
+    enable_geo_partitioning = args.enable_geo_partitioning if args.subparser_name == 'load' else None
+    reload_tables = args.reload_tables if args.subparser_name == 'load' else None
     movr = MovR(conn_string, partition_city_map,
-                is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
-                exponential_txn_backoff=args.exponential_txn_backoff, echo=args.echo_sql)
+                enable_geo_partitioning=enable_geo_partitioning, reload_tables=reload_tables,
+                echo=args.echo_sql)
 
 
     print "connected to movr database @ %s" % args.conn_string
@@ -148,20 +157,23 @@ if __name__ == '__main__':
     for partition in partition_city_map:
         all_cities += partition_city_map[partition]
 
-    cities = all_cities if args.city is None else args.city
 
-    if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
+    if args.subparser_name == 'load' and (args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0):
         print "The number of objects to generate must be > 0"
         sys.exit(1)
 
 
-    if args.reload_tables or args.load:
-        print "loading cities %s" % cities
+    if args.subparser_name=='load':
+        print "loading cities %s" % all_cities
         print "loading movr data with %d users, %d vehicles, and %d rides" % \
               (args.num_users, args.num_vehicles, args.num_rides)
-        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, cities)
+        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, all_cities)
 
     else:
+        if args.read_percentage < 0 or args.read_percentage > 1:
+            print "read percentage must be between 0 and 1"
+            sys.exit(1)
+        cities = all_cities if args.city is None else args.city
         print "simulating movr load for cities %s" % cities
         simulate_movr_load(movr, cities, args.read_percentage)
 
