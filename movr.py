@@ -12,7 +12,7 @@ import random
 class MovR:
 
     def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False,
-                 echo = False, exponential_txn_backoff = False):
+                 echo = False):
 
         self.engine = create_engine(conn_string, convert_unicode=True, echo=echo)
 
@@ -22,7 +22,6 @@ class MovR:
         Base.metadata.create_all(bind=self.engine)
 
         self.session = sessionmaker(bind=self.engine)()
-        self.exponential_txn_backoff = exponential_txn_backoff
 
         MovR.fake = Faker()
 
@@ -85,9 +84,9 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine), lambda session: self.add_user_helper(session, city))
 
 
-    #@todo: how does this work with transaction retires
+    #@todo: how does this work with transaction retires? bulk_save_objects produces `SAVEPOINT not supported except for COCKROACH_RESTART`
     def add_rides(self, num_rides, city):
-        chunk_size = 10000
+        chunk_size = 50000
 
         users = self.session.query(User).filter_by(city=city).all()
         vehicles = self.session.query(Vehicle).filter_by(city=city).all()
