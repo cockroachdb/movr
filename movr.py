@@ -7,7 +7,7 @@ from generators import MovRGenerator
 import datetime
 import random
 
-
+# @todo: fake data should ideally be separated from MovR the class
 
 class MovR:
 
@@ -21,7 +21,7 @@ class MovR:
 
         Base.metadata.create_all(bind=self.engine)
 
-        self.session = sessionmaker(bind=self.engine)()
+        self.session = sessionmaker(bind=self.engine)() #@todo: what is the best practice here?
 
         MovR.fake = Faker()
 
@@ -42,25 +42,55 @@ class MovR:
             for table in ["vehicles", "users", "rides"]:
                 partition_sql = "ALTER TABLE "+ table + " PARTITION BY LIST (city) (" + partition_string + ")"
                 self.session.execute(partition_sql)
-                #@todo: add error handling
 
-
-
-
-    def start_ride_helper(self, session, city, rider_id, vehicle_id):
-        #@todo: fake data should ideally be completely separated from MovR the class
-        r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
-                 rider_id=rider_id, vehicle_id=vehicle_id,
-                 start_address=MovR.fake.address())  # @todo: this should be the address of the vehicle
-        session.add(r)
-        v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
-        v.status = "in_use"
-        return {'city': r.city, 'id': r.id}
-
+    ##################
+    # MAIN MOVR API
+    #################
     def start_ride(self, city, rider_id, vehicle_id):
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: self.start_ride_helper(session, city, rider_id, vehicle_id))
 
+    def end_ride(self, city, ride_id):
+        run_transaction(sessionmaker(bind=self.engine), lambda session: self.end_ride_helper(session, city, ride_id))
+
+    def add_user(self, city):
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.add_user_helper(session, city))
+
+    def add_vehicle(self, city, user_id):
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.add_vehicle_helper(session, city, user_id))
+
+    def get_users(self, city, limit=None):
+        users = self.session.query(User).filter_by(city=city).limit(limit).all()
+        return map(lambda user: {'city': user.city, 'id': user.id}, users)
+
+    def get_vehicles(self, city, limit=None):
+        vehicles = self.session.query(Vehicle).filter_by(city=city).limit(limit).all()
+        return map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles)
+
+    def get_active_rides(self, limit=None):
+        rides = self.session.query(Ride).filter_by(end_time = None).limit(limit).all()
+        return map(lambda ride: {'city': ride.city, 'id': ride.id}, rides)
+
+
+    ############
+    # UTILITIES AND HELPERS
+    ############
+
+    def add_vehicle_helper(self, session, city, user_id):
+        vehicle_type = MovRGenerator.generate_random_vehicle()
+
+        vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type,
+                          city=city, owner_id=user_id, status=MovRGenerator.get_vehicle_availability(),
+                          ext=MovRGenerator.generate_vehicle_metadata(vehicle_type))
+
+        session.add(vehicle)
+        return {'city': vehicle.city, 'id': vehicle.id}
+
+    def add_user_helper(self, session, city):
+        u = User(city=city, id=MovRGenerator.generate_uuid(), name=MovR.fake.name(),
+                 address=MovR.fake.address(), credit_card=MovR.fake.credit_card_number())
+        session.add(u)
+        return {'city': u.city, 'id': u.id}
 
     def end_ride_helper(self, session, city, ride_id):
         ride = session.query(Ride).filter_by(city=city, id=ride_id).first()
@@ -70,20 +100,18 @@ class MovR:
         v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
         v.status = "available"
 
-    def end_ride(self, city, ride_id):
-        run_transaction(sessionmaker(bind=self.engine), lambda session: self.end_ride_helper(session, city, ride_id))
+    def start_ride_helper(self, session, city, rider_id, vehicle_id):
+        r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
+                 rider_id=rider_id, vehicle_id=vehicle_id,
+                 start_address=MovR.fake.address())  # @todo: this should be the address of the vehicle
+        session.add(r)
+        v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
+        v.status = "in_use"
+        return {'city': r.city, 'id': r.id}
 
-
-    def add_user_helper(self, session, city):
-        u = User(city=city, id=MovRGenerator.generate_uuid(), name=MovR.fake.name(),
-                 address=MovR.fake.address(), credit_card=MovR.fake.credit_card_number())
-        session.add(u)
-        return {'city': u.city, 'id': u.id}
-
-    def add_user(self, city):
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.add_user_helper(session, city))
-
-
+    ##############
+    # BULK DATA LOADING
+    ##############
     #@todo: how does this work with transaction retires? bulk_save_objects produces `SAVEPOINT not supported except for COCKROACH_RESTART`
     def add_rides(self, num_rides, city):
         chunk_size = 50000
@@ -129,31 +157,8 @@ class MovR:
             self.session.bulk_save_objects(vehicles)
             self.session.commit()
 
-    def get_users(self, city, limit=None):
-        users = self.session.query(User).filter_by(city=city).limit(limit).all()
-        return map(lambda user: {'city': user.city, 'id': user.id}, users)
 
-    def get_vehicles(self, city, limit=None):
-        vehicles = self.session.query(Vehicle).filter_by(city=city).limit(limit).all()
-        return map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles)
 
-    def get_active_rides(self, limit=None):
-        rides = self.session.query(Ride).filter_by(end_time = None).limit(limit).all()
-        return map(lambda ride: {'city': ride.city, 'id': ride.id}, rides)
-
-    def add_vehicle_helper(self, session, city, user_id):
-        vehicle_type = MovRGenerator.generate_random_vehicle()
-
-        vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type,
-                          city=city, owner_id=user_id, status=MovRGenerator.get_vehicle_availability(),
-                          ext=MovRGenerator.generate_vehicle_metadata(vehicle_type))
-
-        session.add(vehicle)
-
-        return {'city': vehicle.city, 'id': vehicle.id}
-
-    def add_vehicle(self, city, user_id):
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.add_vehicle_helper(session, city, user_id))
 
 
 

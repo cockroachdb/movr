@@ -116,8 +116,6 @@ if __name__ == '__main__':
                         help='Drop and reload MovR tables. Use with --load')
     parser.add_argument('--enable-ccl-features', dest='is_enterprise', action='store_true',
                         help='set this if your cluster has an enterprise license')
-    parser.add_argument('--exponential-txn-backoff', dest='exponential_txn_backoff', action='store_true',
-                        help='set this if you want retriable transactions to backoff exponentially')
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true', help='set this if you want to print all executed SQL statements')
     parser.add_argument('--read-percentage', dest='read_percentage', type=float, help='Value between 0-1 indicating how many reads to perform as a percentage of overall traffic', default=.9)
 
@@ -139,8 +137,7 @@ if __name__ == '__main__':
 
     
     movr = MovR(conn_string, partition_city_map,
-                is_enterprise=args.is_enterprise, reload_tables=args.reload_tables,
-                exponential_txn_backoff=args.exponential_txn_backoff, echo=args.echo_sql)
+                is_enterprise=args.is_enterprise, reload_tables=args.reload_tables, echo=args.echo_sql)
 
 
     print "connected to movr database @ %s" % args.conn_string
