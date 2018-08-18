@@ -58,7 +58,7 @@ class Vehicle(Base):
     ext = Column(JSONB)
     PrimaryKeyConstraint(city, id)
     __table_args__ = (ForeignKeyConstraint([city, owner_id], ["users.city", "users.id"]),)
-    #__table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), ) #@todo: add gin index
+    __table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), )
     def __repr__(self):
         return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 
