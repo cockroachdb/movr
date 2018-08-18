@@ -120,8 +120,8 @@ def setup_parser():
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
-    run_parser.add_argument('--read-percentage', dest='read_percentage', type=float,
-                            help='Value between 0-1 indicating how many reads to perform as a percentage of overall traffic',
+    run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
+                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.9)
 
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
