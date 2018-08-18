@@ -55,7 +55,6 @@ class Vehicle(Base):
     owner_id = Column(UUID)
     creation_time = Column(DateTime, default=datetime.datetime.now)
     status = Column(String)
-    mycol = Column(String)
     ext = Column(JSONB)
     PrimaryKeyConstraint(city, id)
     #ForeignKeyConstraint(["city", "owner_id"], ["users.city", "users.id"]) #this requires an index or it fails silently: https://github.com/cockroachdb/cockroach/issues/22253
