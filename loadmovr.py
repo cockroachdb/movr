@@ -104,15 +104,18 @@ def setup_parser():
     subparsers = parser.add_subparsers(dest='subparser_name')
 
     load_parser = subparsers.add_parser('load', help="load movr data into a database")
-    load_parser.add_argument('--num-users', dest='num_users', type=int, default=50)
-    load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10)
-    load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500)
+    load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
+                             help='The number of random users to add to the dataset')
+    load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
+                             help='The number of random vehicles to add to the dataset')
+    load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500,
+                             help='The number of random rides to add to the dataset')
     load_parser.add_argument('--partition-by', dest='partition_pair', action='append',
                              help='Pairs in the form <partition>:<city_id> that will be used to enable geo-partitioning. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
-                             help='set this if your cluster has an enterprise license')
+                             help='Set this if your cluster has an enterprise license (https://cockroa.ch/2BoAlgB) and you want to use geo-partitioning functionality (https://cockroa.ch/2wd96zF)')
     load_parser.add_argument('--reload-tables', dest='reload_tables', action='store_true',
-                             help='Drop and reload MovR tables. Use with --load')
+                             help='Drop and reload MovR tables')
 
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
     run_parser.add_argument('--city', dest='city', action='append',
