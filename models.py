@@ -30,7 +30,7 @@ class Ride(Base):
     __tablename__ = 'rides'
     id = Column(UUID, default=MovRGenerator.generate_uuid)
     city = Column(String)
-    vehicle_city = Column(String, CheckConstraint('vehicle_city=city')) #annoying workaround for https://github.com/cockroachdb/cockroach/issues/23580
+    vehicle_city = Column(String, CheckConstraint('vehicle_city=city')) #@todo: annoying workaround for https://github.com/cockroachdb/cockroach/issues/23580
     rider_id = Column(UUID)
     vehicle_id = Column(UUID)
     start_address = Column(String)
@@ -57,9 +57,8 @@ class Vehicle(Base):
     status = Column(String)
     ext = Column(JSONB)
     PrimaryKeyConstraint(city, id)
-    #ForeignKeyConstraint(["city", "owner_id"], ["users.city", "users.id"]) #this requires an index or it fails silently: https://github.com/cockroachdb/cockroach/issues/22253
     __table_args__ = (ForeignKeyConstraint([city, owner_id], ["users.city", "users.id"]),)
-    #__table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), )
+    #__table_args__ = (Index('ix_vehicle_ext', ext, postgresql_using="gin"), ) #@todo: add gin index
     def __repr__(self):
         return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 

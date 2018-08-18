@@ -110,7 +110,7 @@ class MovR:
 
 
     def add_rides(self, num_rides, city):
-        chunk_size = 10000
+        chunk_size = 100
 
         users = self.session.query(User).filter_by(city=city).all()
         vehicles = self.session.query(Vehicle).filter_by(city=city).all()
@@ -130,7 +130,7 @@ class MovR:
             self.session.commit()
 
     def add_users(self, num_users, city):
-        chunk_size = 50000
+        chunk_size = 1000
         for chunk in range(0, num_users, chunk_size):
             users = []
             for i in range(chunk, min(chunk + chunk_size, num_users)):
@@ -142,7 +142,7 @@ class MovR:
 
     def add_vehicles(self, num_vehicles, city):
         owners = self.session.query(User).filter_by(city=city).all()
-        chunk_size = 50000
+        chunk_size = 1000
         for chunk in range(0, num_vehicles, chunk_size):
             vehicles = []
             for i in range(chunk, min(chunk + chunk_size, num_vehicles)):
