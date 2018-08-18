@@ -64,15 +64,16 @@ def simulate_movr_load(movr, cities, read_percentage):
                 movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
             elif random.random() < .1:
                 movr_objects[active_city]["vehicles"].append(
-                    movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"]).id)) #add vehicles
+                    movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"])['id'])) #add vehicles
             elif random.random() < .5:
-                ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"]).id,
-                                       random.choice(movr_objects[active_city]["vehicles"]).id)
+                ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
+                                       random.choice(movr_objects[active_city]["vehicles"])['id'])
+
                 active_rides.append(ride)
             else:
                 if len(active_rides):
                     ride = active_rides.pop()
-                    movr.end_ride(ride.city, ride.id)
+                    movr.end_ride(ride['city'], ride['id'])
         except KeyboardInterrupt:
             break
 
