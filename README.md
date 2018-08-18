@@ -66,7 +66,7 @@ Then create the database movr with `cockroach sql --insecure --url [PGURL] -e "c
 `echo 'constraints: [+region=europe-west2]' |  ./cockroach zone set movr.users.eu_west --insecure -f -`
 
 ### Send traffic to a specific datacenter
-Movr supports 9 cities at the moment. Configure the load generator to send a certain cities traffic to the appropriate datacenter using the `--city` flag. Here's the breakdown of cities to partitions.
+Movr defaults to 9 cities. Configure the load generator to send a certain cities traffic to the appropriate datacenter using the `--city` flag. Here's the breakdown of cities to partitions.
 
 **Partition "us_east"**: new york, boston, washington dc
 
