@@ -98,16 +98,6 @@ def extract_partition_pairs_from_cli(pair_list):
 
     return partition_pairs
 
-def parse_extra (parser, namespace):
-  namespaces = []
-  extra = namespace.extra
-  while extra:
-    n = parser.parse_args(extra)
-    extra = n.extra
-    namespaces.append(n)
-
-  return namespaces
-
 def setup_parser():
     parser = argparse.ArgumentParser(description='CLI for MovR.')
     subparsers = parser.add_subparsers(dest='subparser_name')
@@ -135,8 +125,6 @@ def setup_parser():
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
                         help='set this if you want to print all executed SQL statements')
 
-    ## Add nargs="*" for zero or more other commands
-    parser.add_argument('extra', nargs="*", help='Other commands')
 
     return parser
 
