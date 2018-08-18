@@ -6,9 +6,9 @@ First, start a local database with `cockroach start --insecure --host localhost 
 
 Then create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
 
-Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --load --reload-tables --num-users 100 --num-rides 100 --num-vehicles 10`
+Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --reload-tables --num-users 100 --num-rides 100 --num-vehicles 10`
 
-Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --city "new york" --city "boston"`
+Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" run --city "new york" --city "boston"`
 
 ## Pre-built datasets
 
@@ -40,9 +40,9 @@ Make a note of the output here; it includes a mapping of hosts to regions. This 
 
 Then create the database movr with `cockroach sql --insecure --url [PGURL] -e "create database movr;"`
 
-`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" --load --enable-ccl-features --reload-tables`
+`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" load --enable-geo-partitioning --reload-tables`
 
-*note we start movr with the `--enable-ccl-features` flag*
+*note we start movr with the `--enable-geo-partitioning` flag*
 
 ### Add partitions
 `roachprod ssh ${FULLNAME}:1`
@@ -74,7 +74,7 @@ Movr defaults to 9 cities. Configure the load generator to send a certain cities
 
 **Partition "eu_west"**: amsterdam, paris, rome
 
-Example: `docker run -it --rm natestewart/movr --url 'postgres://root@[US EAST DATACENTER]:26257/movr?sslmode=disable' --city "new york" --city "boston" --city "washington dc"`
+Example: `docker run -it --rm natestewart/movr --url 'postgres://root@[US EAST DATACENTER]:26257/movr?sslmode=disable' run --city "new york" --city "boston" --city "washington dc"`
 
 ### Creating simulations where MovR client demand increases
 
@@ -86,7 +86,7 @@ When the K8s cluster is complete, go to the `SSHProxyCommand` field and copy the
 
 It will look something like: `SSH_KEY="path/to/pm-team-cf.pem"; ssh -i $SSH_KEY -A -L8080:localhost:8080 -o ProxyCommand="ssh -i \"${SSH_KEY}\" ubuntu@35.170.63.215 nc %h %p" ubuntu@10.0.23.45`
 
-`kubectl run movr --image=natestewart/movr -- --url 'postgres://root@35.197.63.199:26257/movr?sslmode=disable' --city "los angeles" --city "seattle"`
+`kubectl run movr --image=natestewart/movr -- --url 'postgres://root@35.197.63.199:26257/movr?sslmode=disable' run --city "los angeles" --city "seattle"`
 
 10x load: `ubuntu@ip-10-0-23-45:~$ kubectl scale deployment movr --replicas=10`
 

@@ -11,7 +11,7 @@ import random
 
 class MovR:
 
-    def __init__(self, conn_string, partition_map, is_enterprise = False, reload_tables = False,
+    def __init__(self, conn_string, partition_map, enable_geo_partitioning = False, reload_tables = False,
                  echo = False):
 
         self.engine = create_engine(conn_string, convert_unicode=True, echo=echo)
@@ -21,12 +21,12 @@ class MovR:
 
         Base.metadata.create_all(bind=self.engine)
 
-        self.session = sessionmaker(bind=self.engine)() #@todo: what is the best practice here?
+        self.session = sessionmaker(bind=self.engine)()
 
         MovR.fake = Faker()
 
         #setup geo-partitioning if this is an enterprise cluster
-        if is_enterprise:
+        if enable_geo_partitioning:
             partition_string = ""
             first_region = True
             for region in partition_map:
