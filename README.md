@@ -93,7 +93,8 @@ It will look something like: `SSH_KEY="path/to/pm-team-cf.pem"; ssh -i $SSH_KEY 
 
 ## Pre-built datasets
 
-### MovR 1M (Unpartitioned)###
+### MovR 1M
+This datasset contains 1M users, 1M rides, and 100k vehicles.
 
 Import Users
 ```
@@ -177,4 +178,33 @@ ALTER TABLE vehicles VALIDATE CONSTRAINT fk_city_ref_users;
 ALTER TABLE rides VALIDATE CONSTRAINT fk_city_ref_users;
 ALTER TABLE rides VALIDATE CONSTRAINT fk_vehicle_city_ref_vehicles;
 
+```
+
+### Adding geo-partitioning
+
+If your cluster has an enterprise license key, you can enable geo-partitioning.
+
+```
+ALTER TABLE users PARTITION BY LIST (city) (
+PARTITION us_west VALUES IN (('san francisco'), ('seattle'), ('los angeles')),
+PARTITION eu_west VALUES IN (('amsterdam'), ('paris'), ('rome')),
+PARTITION us_east VALUES IN (('new york'), ('boston'), ('washington dc'))
+);
+```
+
+
+```
+ALTER TABLE vehicles PARTITION BY LIST (city) (
+PARTITION us_west VALUES IN (('san francisco'), ('seattle'), ('los angeles')),
+PARTITION eu_west VALUES IN (('amsterdam'), ('paris'), ('rome')),
+PARTITION us_east VALUES IN (('new york'), ('boston'), ('washington dc'))
+);
+```
+
+```
+ALTER TABLE rides PARTITION BY LIST (city) (
+PARTITION us_west VALUES IN (('san francisco'), ('seattle'), ('los angeles')),
+PARTITION eu_west VALUES IN (('amsterdam'), ('paris'), ('rome')),
+PARTITION us_east VALUES IN (('new york'), ('boston'), ('washington dc'))
+);
 ```
