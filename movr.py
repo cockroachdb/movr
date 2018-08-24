@@ -11,22 +11,21 @@ import random
 
 class MovR:
 
-    def __init__(self, conn_string, partition_map, enable_geo_partitioning = False, reload_tables = False,
+    def __init__(self, conn_string, partition_map, enable_geo_partitioning = False, init_tables = False, load_tables = False,
                  echo = False):
 
         self.engine = create_engine(conn_string, convert_unicode=True, echo=echo)
 
-        if reload_tables:
+        if init_tables:
             Base.metadata.drop_all(bind=self.engine)
-
-        Base.metadata.create_all(bind=self.engine)
+            Base.metadata.create_all(bind=self.engine)
 
         self.session = sessionmaker(bind=self.engine)()
 
         MovR.fake = Faker()
 
         #setup geo-partitioning if this is an enterprise cluster
-        if enable_geo_partitioning:
+        if enable_geo_partitioning and (load_tables or init_tables):
             partition_string = ""
             first_region = True
             for region in partition_map:
@@ -60,21 +59,31 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine), lambda session: self.add_vehicle_helper(session, city, user_id))
 
     def get_users(self, city, limit=None):
-        users = self.session.query(User).filter_by(city=city).limit(limit).all()
-        return map(lambda user: {'city': user.city, 'id': user.id}, users)
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.get_users_helper(session, city, limit))
 
     def get_vehicles(self, city, limit=None):
-        vehicles = self.session.query(Vehicle).filter_by(city=city).limit(limit).all()
-        return map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles)
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.get_vehicles_helper(session, city, limit))
 
     def get_active_rides(self, limit=None):
-        rides = self.session.query(Ride).filter_by(end_time = None).limit(limit).all()
-        return map(lambda ride: {'city': ride.city, 'id': ride.id}, rides)
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: self.get_active_rides_helper(session, limit))
 
 
     ############
     # UTILITIES AND HELPERS
     ############
+
+    # @todo: get by city
+    def get_active_rides_helper(self, session, limit=None):
+        rides = self.session.query(Ride).filter_by(end_time=None).limit(limit).all()
+        return map(lambda ride: {'city': ride.city, 'id': ride.id}, rides)
+
+    def get_users_helper(self, session, city, limit):
+        users = session.query(User).filter_by(city=city).limit(limit).all()
+        return map(lambda user: {'city': user.city, 'id': user.id}, users)
+
+    def get_vehicles_helper(self, session, city, limit=None):
+        vehicles = self.session.query(Vehicle).filter_by(city=city).limit(limit).all()
+        return map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles)
 
     def add_vehicle_helper(self, session, city, user_id):
         vehicle_type = MovRGenerator.generate_random_vehicle()
