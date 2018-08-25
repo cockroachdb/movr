@@ -11,6 +11,7 @@ Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://ro
 Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --num-threads 10 run --city "new york" --city "boston"`
 
 
+
 ## Simulate a geo-partitioned MovR deployment  
 
 ### Setup the cluster and load data
