@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-#@todo: keyboard interrupt needs to work when using threads during load
-
 import argparse
 from movr import MovR
 import random, math
@@ -22,7 +20,7 @@ def signal_handler(sig, frame):
     grace_period = 15
     logging.info('Waiting at most %d seconds for threads to shutdown...', grace_period)
     TERMINATE_GRACEFULLY = True
-    #@todo: close connections
+
     start = time.time()
     while threading.active_count() > 1:
         if (time.time() - start) > grace_period:
@@ -36,7 +34,7 @@ def signal_handler(sig, frame):
 
 
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format='[%(levelname)s] (%(threadName)-10s) %(message)s',)
 
 DEFAULT_PARTITION_MAP = {
@@ -50,6 +48,7 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo
     with MovR(conn_string, echo=echo_sql) as movr:
         for city in cities:
             if TERMINATE_GRACEFULLY:
+                logging.debug("terminating")
                 return
             logging.info("populating %s...", city)
             # add users
@@ -252,7 +251,6 @@ if __name__ == '__main__':
 
 
     else:
-        # @todo: give each thead its own connection
 
         if args.read_percentage < 0 or args.read_percentage > 1:
             logging.error("read percentage must be between 0 and 1")
