@@ -1,12 +1,14 @@
 #!/usr/bin/python
 
-#@todo: keyboard interrupt needs to work when using threads
+#@todo: keyboard interrupt needs to work when using threads during load
 
 import argparse
 from movr import MovR
 import random, math
 import sys, os
 import time
+
+import threading
 from threading import Thread
 import logging
 import signal
@@ -17,11 +19,19 @@ TERMINATE_GRACEFULLY = False
 
 def signal_handler(sig, frame):
     global TERMINATE_GRACEFULLY
-    logging.info('Exiting...')
+    grace_period = 15
+    logging.info('Waiting at most %d seconds for threads to shutdown...', grace_period)
     TERMINATE_GRACEFULLY = True
     #@todo: close connections
-    for thread in RUNNING_THREADS:
-        thread.join()
+    start = time.time()
+    while threading.active_count() > 1:
+        if (time.time() - start) > grace_period:
+            logging.info("grace period has passed. killing threads.")
+            os._exit(1)
+        else:
+            time.sleep(.1)
+
+    logging.info("shutting down gracefully.")
     sys.exit(0)
 
 
@@ -38,11 +48,11 @@ DEFAULT_PARTITION_MAP = {
 
 def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql):
     with MovR(conn_string, echo=echo_sql) as movr:
-        #@todo: add transaction retries and exception handling
         for city in cities:
+            if TERMINATE_GRACEFULLY:
+                return
             logging.info("populating %s...", city)
             # add users
-            start_time = time.time()
             city_user_count = int(num_users / len(cities)) if int(num_users / len(cities)) > 0 else 1
             movr.add_users(city_user_count, city)
 
@@ -174,7 +184,10 @@ if __name__ == '__main__':
         logging.error("The connection string needs to point to a database named 'movr'")
         sys.exit(1)
 
-    #@todo: check threads is positive
+    if args.num_threads <= 0:
+        logging.error("Number of threads must be greater than 0.")
+        sys.exit(1)
+
 
     logging.info("connected to movr database @ %s" % args.conn_string)
 
@@ -211,7 +224,7 @@ if __name__ == '__main__':
                   args.num_users, args.num_vehicles, args.num_rides)
 
         RUNNING_THREADS = []
-        #@todo: add cities in parallel
+
         cities_per_thread = int(math.ceil((float(len(all_cities)) / args.num_threads)))
         num_users_per_thread = int(math.ceil((float(args.num_users) / args.num_threads)))
         num_rides_per_thread = int(math.ceil((float(args.num_rides) / args.num_threads)))
@@ -227,9 +240,9 @@ if __name__ == '__main__':
                 t.start()
                 RUNNING_THREADS.append(t)
 
-        #@todo: join threads and wait for them to finish
-        for thread in RUNNING_THREADS:
-            thread.join()
+        while threading.active_count() > 1:
+            time.sleep(0.1)
+
 
         duration = time.time() - start_time
         logging.info("populated %s cities in %f seconds", len(all_cities), duration)
