@@ -5,7 +5,6 @@ from movr import MovR
 import random, math
 import sys, os
 import time
-
 import threading
 from threading import Thread
 import logging
@@ -43,18 +42,18 @@ DEFAULT_PARTITION_MAP = {
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
-
-def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql):
+# Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
+def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql = False):
     with MovR(conn_string, echo=echo_sql) as movr:
         for city in cities:
             if TERMINATE_GRACEFULLY:
                 logging.debug("terminating")
                 return
-            logging.info("populating %s...", city)
+            logging.info("Generating data for %s...", city)
+
             # add users
             city_user_count = int(num_users / len(cities)) if int(num_users / len(cities)) > 0 else 1
             movr.add_users(city_user_count, city)
-
 
             # add vehicles
             city_vehicle_count = int(num_vehicles / len(cities)) if int(num_vehicles / len(cities)) > 0 else 1
@@ -68,15 +67,16 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo
 
     return
 
-
+# Generates load evenly distributed among the provided cities
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
+
     with MovR(conn_string, echo=echo_sql) as movr:
         num_retries = 0
         exception_message = ""
         while True and num_retries < 5:
             try:
                 if TERMINATE_GRACEFULLY:
-                    logging.debug("terminating")
+                    logging.debug("Terminating thread.")
                     return
 
                 active_city = random.choice(cities)
@@ -97,10 +97,10 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
                 num_retries = 0
-            except Exception as e: #@todo: catch the right exception
+            except Exception, e: #@todo: catch the right exception
                 num_retries += 1
-                exception_message = e
-                logging.warn("Retry attempt %d, last attempt failed with %s", num_retries, exception_message)
+                exception_message = str(e)
+                logging.debug("Retry attempt %d, last attempt failed with %s", num_retries, exception_message)
 
         logging.error("Too many errors. Killing thread after exception: %s", exception_message)
 
@@ -132,6 +132,16 @@ def setup_parser():
     parser = argparse.ArgumentParser(description='CLI for MovR.')
     subparsers = parser.add_subparsers(dest='subparser_name')
 
+    ###########
+    # GENERAL COMMANDS
+    ##########
+    parser.add_argument('--num-threads', dest='num_threads', type=int, default=5,
+                            help='The number threads to use for MovR (default =5)')
+    parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
+                        help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
+
+    parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
+                        help='set this if you want to print all executed SQL statements')
 
     ###############
     # LOAD COMMANDS
@@ -161,22 +171,14 @@ def setup_parser():
                             help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.9)
 
-    ###########
-    # GENERAL COMMANDS
-    ##########
-    parser.add_argument('--num-threads', dest='num_threads', type=int, default=5,
-                            help='The number threads to use for MovR (default =5)')
-    parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
-                        help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
 
-    parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
-                        help='set this if you want to print all executed SQL statements')
 
     return parser
 
 if __name__ == '__main__':
 
-    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler) #support ctrl + c to exit multithreaded operation
+
     args = setup_parser().parse_args()
 
     if args.conn_string.find("/movr") < 0:
@@ -188,41 +190,35 @@ if __name__ == '__main__':
         sys.exit(1)
 
 
-    logging.info("connected to movr database @ %s" % args.conn_string)
+    logging.info("Connected to movr database @ %s" % args.conn_string)
 
+    #format connection string to work with our cockroachdb driver.
     conn_string = args.conn_string.replace("postgres://", "cockroachdb://")
     conn_string = conn_string.replace("postgresql://", "cockroachdb://")
 
     # population partitions
     partition_city_map = extract_partition_pairs_from_cli(args.partition_pair if args.subparser_name=='load' else None)
 
-    enable_geo_partitioning = args.enable_geo_partitioning if args.subparser_name == 'load' else None
-    skip_reload_tables = args.skip_reload_tables if args.subparser_name == 'load' else None
-
     all_cities = []
     for partition in partition_city_map:
         all_cities += partition_city_map[partition]
 
-
-    if args.subparser_name == 'load' and (args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0):
-        logging.error("The number of objects to generate must be > 0")
-        sys.exit(1)
-
-
-
     if args.subparser_name=='load':
 
+        if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
+            logging.error("The number of objects to generate must be > 0")
+            sys.exit(1)
+
         start_time = time.time()
-        with MovR(conn_string, init_tables=(not skip_reload_tables), echo=args.echo_sql) as movr:
-            if enable_geo_partitioning:
-                logging.info("geo-partitioning tables")
+        with MovR(conn_string, init_tables=(not args.skip_reload_tables), echo=args.echo_sql) as movr:
+            if args.enable_geo_partitioning:
                 movr.add_geo_partitioning(partition_city_map)
 
             logging.info("loading cities %s", all_cities)
-            logging.info("loading movr data with %d users, %d vehicles, and %d rides",
+            logging.info("loading movr data with ~%d users, ~%d vehicles, and ~%d rides",
                   args.num_users, args.num_vehicles, args.num_rides)
 
-        RUNNING_THREADS = []
+
 
         cities_per_thread = int(math.ceil((float(len(all_cities)) / args.num_threads)))
         num_users_per_thread = int(math.ceil((float(args.num_users) / args.num_threads)))
@@ -230,6 +226,8 @@ if __name__ == '__main__':
         num_vehicles_per_thread = int(math.ceil((float(args.num_vehicles) / args.num_threads)))
 
         cities_to_load = all_cities
+
+        RUNNING_THREADS = []
 
         for i in range(args.num_threads):
             if len(cities_to_load) > 0:
@@ -239,11 +237,12 @@ if __name__ == '__main__':
                 t.start()
                 RUNNING_THREADS.append(t)
 
-        while threading.active_count() > 1:
+        while threading.active_count() > 1: #keep main thread alive so we can catch ctrl + c
             time.sleep(0.1)
 
 
         duration = time.time() - start_time
+
         logging.info("populated %s cities in %f seconds", len(all_cities), duration)
         logging.info("- %f users/second", float(num_users_per_thread * args.num_threads)/duration)
         logging.info("- %f rides/second", float(num_vehicles_per_thread * args.num_threads)/duration)
@@ -255,20 +254,20 @@ if __name__ == '__main__':
         if args.read_percentage < 0 or args.read_percentage > 1:
             logging.error("read percentage must be between 0 and 1")
             sys.exit(1)
-        cities = all_cities if args.city is None else args.city
 
-        movr = MovR(conn_string, echo=args.echo_sql)
+        cities = all_cities if args.city is None else args.city
+        logging.info("simulating movr load for cities %s", cities)
 
         movr_objects = {}
-        for city in cities:
-            movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
-            if len(movr_objects[city]["vehicles"]) == 0 or len(movr_objects[city]["users"]) == 0:
-                logging.error("must have users and vehicles for '%s' in the movr database to generte load. try running with the 'load' command.", city)
-                sys.exit(1)
 
-        active_rides = movr.get_active_rides()
-        logging.info("simulating movr load for cities %s", cities)
-        logging.info("conn string is " + conn_string)
+        with MovR(conn_string, echo=args.echo_sql) as movr:
+            for city in cities:
+                movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
+                if len(movr_objects[city]["vehicles"]) == 0 or len(movr_objects[city]["users"]) == 0:
+                    logging.error("must have users and vehicles for '%s' in the movr database to generte load. try running with the 'load' command.", city)
+                    sys.exit(1)
+
+            active_rides = movr.get_active_rides()
 
         RUNNING_THREADS = []
         for i in range(args.num_threads):
