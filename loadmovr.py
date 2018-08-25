@@ -51,17 +51,10 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo
                 return
             logging.info("Generating data for %s...", city)
 
-            # add users
-            city_user_count = int(num_users / len(cities)) if int(num_users / len(cities)) > 0 else 1
-            movr.add_users(city_user_count, city)
+            movr.add_users(num_users, city)
+            movr.add_vehicles(num_vehicles, city)
+            movr.add_rides(num_rides, city)
 
-            # add vehicles
-            city_vehicle_count = int(num_vehicles / len(cities)) if int(num_vehicles / len(cities)) > 0 else 1
-            movr.add_vehicles(city_vehicle_count, city)
-
-            # add rides
-            city_ride_count = int(num_rides/len(cities)) if int(num_rides/len(cities)) > 0 else 1
-            movr.add_rides(city_ride_count, city)
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
 
@@ -219,20 +212,21 @@ if __name__ == '__main__':
                   args.num_users, args.num_vehicles, args.num_rides)
 
 
+        usable_threads = min(args.num_threads, len(all_cities)) #don't create more than 1 thread per city
 
-        cities_per_thread = int(math.ceil((float(len(all_cities)) / args.num_threads)))
-        num_users_per_thread = int(math.ceil((float(args.num_users) / args.num_threads)))
-        num_rides_per_thread = int(math.ceil((float(args.num_rides) / args.num_threads)))
-        num_vehicles_per_thread = int(math.ceil((float(args.num_vehicles) / args.num_threads)))
+        cities_per_thread = int(math.ceil((float(len(all_cities)) / usable_threads)))
+        num_users_per_city = int(math.ceil((float(args.num_users) / len(all_cities))))
+        num_rides_per_city = int(math.ceil((float(args.num_rides) / len(all_cities))))
+        num_vehicles_per_city = int(math.ceil((float(args.num_vehicles) / len(all_cities))))
 
         cities_to_load = all_cities
 
         RUNNING_THREADS = []
 
-        for i in range(args.num_threads):
+        for i in range(usable_threads):
             if len(cities_to_load) > 0:
-                t = Thread(target=load_movr_data, args=(conn_string, num_users_per_thread, num_vehicles_per_thread,
-                                                        num_rides_per_thread, cities_to_load[:cities_per_thread], args.echo_sql))
+                t = Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
+                                                        num_rides_per_city, cities_to_load[:cities_per_thread], args.echo_sql))
                 cities_to_load = cities_to_load[cities_per_thread:]
                 t.start()
                 RUNNING_THREADS.append(t)
@@ -244,9 +238,9 @@ if __name__ == '__main__':
         duration = time.time() - start_time
 
         logging.info("populated %s cities in %f seconds", len(all_cities), duration)
-        logging.info("- %f users/second", float(num_users_per_thread * args.num_threads)/duration)
-        logging.info("- %f rides/second", float(num_vehicles_per_thread * args.num_threads)/duration)
-        logging.info("- %f vehicles/second", float(num_rides_per_thread * args.num_threads)/duration)
+        logging.info("- %f users/second", float(num_users_per_city * len(all_cities))/duration)
+        logging.info("- %f rides/second", float(num_rides_per_city * len(all_cities))/duration)
+        logging.info("- %f vehicles/second", float(num_vehicles_per_city * len(all_cities))/duration)
 
 
     else:
