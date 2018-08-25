@@ -140,7 +140,7 @@ class MovR:
     ##############
     # BULK DATA LOADING
     ##############
-    #@todo: how does this work with transaction retires? bulk_save_objects produces `SAVEPOINT not supported except for COCKROACH_RESTART`
+    #@todo: make this work with transaction retires as well.
     def add_rides(self, num_rides, city):
         chunk_size = 100
 
