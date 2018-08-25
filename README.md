@@ -6,7 +6,7 @@ First, start a local database with `cockroach start --insecure --host localhost 
 
 Then create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
 
-Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --reload-tables --num-users 100 --num-rides 100 --num-vehicles 10`
+Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --init --num-users 100 --num-rides 100 --num-vehicles 10`
 
 Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" run --city "new york" --city "boston"`
 

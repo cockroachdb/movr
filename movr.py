@@ -52,7 +52,7 @@ class MovR:
             partition_string += ")"
 
         for table in ["vehicles", "users", "rides"]:
-            logging.info("Partitioning table: %s", table)
+            logging.debug("Partitioning table: %s", table)
             partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
             self.session.execute(partition_sql)
 

@@ -11,7 +11,7 @@ from threading import Thread
 import logging
 import signal
 
-#@todo: close connections to the database. open connections should be restores to zero.
+#@todo: close connections to the database. open connections should be reset to zero.
 def signal_handler(sig, frame):
     print('Exiting...')
     os._exit(0)
@@ -28,12 +28,12 @@ DEFAULT_PARTITION_MAP = {
 }
 
 
-#@todo: do this in parallel. argument shouldnt be load anymore, it should be, create partitions
 def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql):
     movr = MovR(conn_string, echo=echo_sql)
     #@todo: rounding means the requests values don't equal actual. fix this.
+    #@todo: add transaction retries and exception handling
     for city in cities:
-        logging.info("populating %s..", city)
+        logging.info("populating %s...", city)
         # add users
         start_time = time.time()
         city_user_count = int(num_users / len(cities)) if int(num_users / len(cities)) > 0 else 1
@@ -221,8 +221,6 @@ if __name__ == '__main__':
         logging.info("- %f users/second", float(args.num_users)/duration)
         logging.info("- %f rides/second", float(args.num_vehicles)/duration)
         logging.info("- %f vehicles/second", float(args.num_rides)/duration)
-
-        print 'finished loading!!'
 
 
     else:
