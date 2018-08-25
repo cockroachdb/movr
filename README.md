@@ -6,9 +6,10 @@ First, start a local database with `cockroach start --insecure --host localhost 
 
 Then create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
 
-Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --reload-tables --num-users 100 --num-rides 100 --num-vehicles 10`
+Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10`
 
-Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" run --city "new york" --city "boston" --num-threads 20`
+Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --num-threads 10 run --city "new york" --city "boston"`
+
 
 
 ## Simulate a geo-partitioned MovR deployment  
@@ -36,7 +37,7 @@ Make a note of the output here; it includes a mapping of hosts to regions. This 
 
 Then create the database movr with `cockroach sql --insecure --url [PGURL] -e "create database movr;"`
 
-`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" load --enable-geo-partitioning --reload-tables`
+`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" load --enable-geo-partitioning`
 
 *note we start movr with the `--enable-geo-partitioning` flag*
 
@@ -73,6 +74,12 @@ Movr defaults to 9 cities. Configure the load generator to send a certain cities
 Example: `docker run -it --rm natestewart/movr --url 'postgres://root@[US EAST DATACENTER]:26257/movr?sslmode=disable' run --city "new york" --city "boston" --city "washington dc"`
 
 ### Creating simulations where MovR client demand increases
+
+#### Using multiple threads
+
+You can increase the concurrency of movr using the `--num-threads` command. 
+
+#### Using multiple container images via K8s
 
 Create a heptio Kubernetes cluster to run many simultaneous MovR containers using a [CloudFormation Template](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=Heptio-Kubernetes&templateURL=https:%2F%2Faws-quickstart.s3.amazonaws.com%2Fquickstart-heptio%2Ftemplates%2Fkubernetes-cluster-with-new-vpc.template)
 
