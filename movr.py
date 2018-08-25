@@ -15,6 +15,12 @@ logging.basicConfig(level=logging.INFO,
 
 class MovR:
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.session.close()
+
     def __init__(self, conn_string, init_tables = False, echo = False):
 
 
