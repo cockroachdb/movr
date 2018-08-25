@@ -10,7 +10,6 @@ import time
 from threading import Thread
 import logging
 import signal
-import psycopg2
 
 #@todo: close connections to the database. open connections should be restores to zero.
 def signal_handler(sig, frame):
@@ -80,12 +79,12 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     ride = active_rides.pop()
                     movr.end_ride(ride['city'], ride['id'])
             num_retries = 0
-        except psycopg2.InternalError as e:
+        except Exception as e: #@todo: catch the right exception
             num_retries += 1
-            exception_message = e.pgerror
+            exception_message = e
             logging.warn("Retry attempt %d, last attempt failed with %s", num_retries, exception_message)
 
-    logging.error("Too many errors. Killing thread after exception: ", exception_message)
+    logging.error("Too many errors. Killing thread after exception: %s", exception_message)
 
 
 
