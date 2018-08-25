@@ -4,21 +4,22 @@
 
 import argparse
 from movr import MovR
-import random
+import random, math
 import sys, os
 import time
 from threading import Thread
 import logging
 import signal
+import psycopg2
 
-
+#@todo: close connections to the database. open connections should be restores to zero.
 def signal_handler(sig, frame):
     print('Exiting...')
     os._exit(0)
 
 
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format='[%(levelname)s] (%(threadName)-10s) %(message)s',)
 
 DEFAULT_PARTITION_MAP = {
@@ -28,38 +29,36 @@ DEFAULT_PARTITION_MAP = {
 }
 
 
-def load_movr_data(movr, num_users, num_vehicles, num_rides, cities):
+#@todo: do this in parallel. argument shouldnt be load anymore, it should be, create partitions
+def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql):
+    movr = MovR(conn_string, echo=echo_sql)
     #@todo: rounding means the requests values don't equal actual. fix this.
     for city in cities:
-        logging.info("populating %s", city)
+        logging.info("populating %s..", city)
         # add users
         start_time = time.time()
         city_user_count = int(num_users / len(cities)) if int(num_users / len(cities)) > 0 else 1
         movr.add_users(city_user_count, city)
-        logging.info("added %d users in %f seconds (%f users/second)"
-              ,city_user_count,  time.time() - start_time, city_user_count / float(time.time() - start_time))
+
 
         # add vehicles
-        start_time = time.time()
         city_vehicle_count = int(num_vehicles / len(cities)) if int(num_vehicles / len(cities)) > 0 else 1
         movr.add_vehicles(city_vehicle_count, city)
-        logging.info("added %d vehicles in %f seconds (%f vehicles/second)",
-              city_vehicle_count, time.time() - start_time, city_vehicle_count / float(time.time() - start_time))
 
         # add rides
-        start_time = time.time()
         city_ride_count = int(num_rides/len(cities)) if int(num_rides/len(cities)) > 0 else 1
         movr.add_rides(city_ride_count, city)
-        logging.info("added %d rides in %f seconds (%f rides/second)",
-              city_ride_count, time.time() - start_time, city_ride_count / float(time.time() - start_time))
+        logging.info("populated %s in %f seconds",
+              city, time.time() - start_time)
 
     return
 
 
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
-    movr = MovR(conn_string, partition_city_map, echo=echo_sql)
+    movr = MovR(conn_string, echo=echo_sql)
 
     num_retries = 0
+    exception_message = ""
     while True and num_retries < 5:
         try:
             active_city = random.choice(cities)
@@ -81,10 +80,12 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     ride = active_rides.pop()
                     movr.end_ride(ride['city'], ride['id'])
             num_retries = 0
-        except:
+        except psycopg2.InternalError as e:
             num_retries += 1
+            exception_message = e.pgerror
+            logging.warn("Retry attempt %d, last attempt failed with %s", num_retries, exception_message)
 
-    logging.error("Too many errors. Killing thread")  # @todo: get more fine grained
+    logging.error("Too many errors. Killing thread after exception: ", exception_message)
 
 
 
@@ -114,6 +115,10 @@ def setup_parser():
     parser = argparse.ArgumentParser(description='CLI for MovR.')
     subparsers = parser.add_subparsers(dest='subparser_name')
 
+
+    ###############
+    # LOAD COMMANDS
+    ###############
     load_parser = subparsers.add_parser('load', help="load movr data into a database")
     load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
                              help='The number of random users to add to the dataset')
@@ -128,15 +133,22 @@ def setup_parser():
     load_parser.add_argument('--init', dest='reload_tables', action='store_true',
                              help='Drop and reload MovR tables')
 
+    ###############
+    # RUN COMMANDS
+    ###############
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
-    run_parser.add_argument('--num-threads', dest='num_threads', type=int, default=5,
-                             help='The number threads to use for simulating client load (default =5)')
+
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
     run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
                             help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.9)
 
+    ###########
+    # GENERAL COMMANDS
+    ##########
+    parser.add_argument('--num-threads', dest='num_threads', type=int, default=5,
+                            help='The number threads to use for MovR (default =5)')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
 
@@ -152,6 +164,8 @@ if __name__ == '__main__':
     if args.conn_string.find("/movr") < 0:
         logging.error("The connection string needs to point to a database named 'movr'")
         sys.exit(1)
+
+    #@todo: check threads is positive
 
     logging.info("connected to movr database @ %s" % args.conn_string)
 
@@ -175,15 +189,42 @@ if __name__ == '__main__':
 
     if args.subparser_name=='load':
 
+        start_time = time.time()
+        movr = MovR(conn_string, init_tables=reload_tables, echo=args.echo_sql)
 
-        movr = MovR(conn_string, partition_city_map,
-                    enable_geo_partitioning=enable_geo_partitioning, load_tables=True, init_tables=reload_tables,
-                    echo=args.echo_sql)
+        if enable_geo_partitioning:
+            logging.info("geo-partitioning tables")
+            movr.add_geo_partitioning(partition_city_map)
 
         logging.info("loading cities %s", all_cities)
         logging.info("loading movr data with %d users, %d vehicles, and %d rides",
               args.num_users, args.num_vehicles, args.num_rides)
-        load_movr_data(movr, args.num_users, args.num_vehicles, args.num_rides, all_cities)
+
+        threads = []
+        #@todo: add cities in parallel
+        cities_per_thread = int(math.ceil((float(len(all_cities)) / args.num_threads)))
+        cities_to_load = all_cities
+
+        for i in range(args.num_threads):
+            if len(cities_to_load) > 0:
+                t = Thread(target=load_movr_data, args=(conn_string, args.num_users, args.num_vehicles,
+                                                        args.num_rides, cities_to_load[:cities_per_thread], args.echo_sql))
+                cities_to_load = cities_to_load[cities_per_thread:]
+                t.start()
+                threads.append(t)
+
+        #@todo: join threads and wait for them to finish
+        for thread in threads:
+            thread.join()
+
+        duration = time.time() - start_time
+        logging.info("populated %s cities in %f seconds", len(all_cities), duration)
+        logging.info("- %f users/second", float(args.num_users)/duration)
+        logging.info("- %f rides/second", float(args.num_vehicles)/duration)
+        logging.info("- %f vehicles/second", float(args.num_rides)/duration)
+
+        print 'finished loading!!'
+
 
     else:
         # @todo: give each thead its own connection
@@ -193,7 +234,7 @@ if __name__ == '__main__':
             sys.exit(1)
         cities = all_cities if args.city is None else args.city
 
-        movr = MovR(conn_string, partition_city_map, echo=args.echo_sql)
+        movr = MovR(conn_string, echo=args.echo_sql)
 
         movr_objects = {}
         for city in cities:

@@ -6,45 +6,58 @@ from models import Base, User, Vehicle, Ride
 from generators import MovRGenerator
 import datetime
 import random
+import logging
+
+logging.basicConfig(level=logging.INFO,
+                    format='[%(levelname)s] (%(threadName)-10s) %(message)s',)
 
 # @todo: fake data should ideally be separated from MovR the class
 
 class MovR:
 
-    def __init__(self, conn_string, partition_map, enable_geo_partitioning = False, init_tables = False, load_tables = False,
-                 echo = False):
+    def __init__(self, conn_string, init_tables = False, echo = False):
+
 
         self.engine = create_engine(conn_string, convert_unicode=True, echo=echo)
 
+
         if init_tables:
+            logging.info("initializing tables")
             Base.metadata.drop_all(bind=self.engine)
             Base.metadata.create_all(bind=self.engine)
+            logging.debug("tables dropped and created")
 
         self.session = sessionmaker(bind=self.engine)()
 
         MovR.fake = Faker()
 
-        #setup geo-partitioning if this is an enterprise cluster
-        if enable_geo_partitioning and (load_tables or init_tables):
-            partition_string = ""
-            first_region = True
-            for region in partition_map:
-                partition_string += "PARTITION " + region + " VALUES IN (" if first_region \
-                    else ", PARTITION " + region + " VALUES IN ("
-                first_region = False
-                first_city = True
-                for city in partition_map[region]:
-                    partition_string+="'" + city + "' " if first_city else ", '" + city + "'"
-                    first_city = False
-                partition_string += ")"
-
-            for table in ["vehicles", "users", "rides"]:
-                partition_sql = "ALTER TABLE "+ table + " PARTITION BY LIST (city) (" + partition_string + ")"
-                self.session.execute(partition_sql)
 
     ##################
     # MAIN MOVR API
     #################
+
+    # setup geo-partitioning if this is an enterprise cluster
+    def add_geo_partitioning(self, partition_map):
+        logging.debug("Partitioning database with : %s", partition_map)
+        partition_string = ""
+        first_region = True
+        for region in partition_map:
+            partition_string += "PARTITION " + region + " VALUES IN (" if first_region \
+                else ", PARTITION " + region + " VALUES IN ("
+            first_region = False
+            first_city = True
+            for city in partition_map[region]:
+                partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
+                first_city = False
+            partition_string += ")"
+
+        for table in ["vehicles", "users", "rides"]:
+            logging.info("Partitioning table: %s", table)
+            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
+            self.session.execute(partition_sql)
+
+        self.session.commit()
+
     def start_ride(self, city, rider_id, vehicle_id):
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: self.start_ride_helper(session, city, rider_id, vehicle_id))

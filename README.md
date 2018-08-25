@@ -36,7 +36,7 @@ Make a note of the output here; it includes a mapping of hosts to regions. This 
 
 Then create the database movr with `cockroach sql --insecure --url [PGURL] -e "create database movr;"`
 
-`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" load --enable-geo-partitioning --reload-tables`
+`docker run -it --rm natestewart/movr --url "[PGURL]/movr?sslmode=disable" load --enable-geo-partitioning --init`
 
 *note we start movr with the `--enable-geo-partitioning` flag*
 
