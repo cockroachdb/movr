@@ -2,6 +2,8 @@
 
 MovR is a fictional ride sharing company. This repo contains datasets and load generators. We plan to make this repo public in time for the CockroachDB 2.1 release.
 
+Don't forget to pull the latest version of MovR: `docker pull natestewart/movr`
+
 First, start a local database with `cockroach start --insecure --host localhost --background`
 
 Then create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
