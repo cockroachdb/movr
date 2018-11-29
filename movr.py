@@ -140,55 +140,66 @@ class MovR:
     ##############
     # BULK DATA LOADING
     ##############
-    #@todo: make this work with transaction retires as well.
+
     def add_rides(self, num_rides, city):
         chunk_size = 100
 
-        users = self.session.query(User).filter_by(city=city).all()
-        vehicles = self.session.query(Vehicle).filter_by(city=city).all()
+        def add_rides_helper(sess, chunk, n):
+            users = sess.query(User).filter_by(city=city).all()
+            vehicles = sess.query(Vehicle).filter_by(city=city).all()
 
-        for chunk in range(0, num_rides, chunk_size):
             rides = []
             for i in range(chunk, min(chunk + chunk_size, num_rides)):
-                start_time = datetime.datetime.now() - datetime.timedelta(days = random.randint(0,30))
-                rides.append(Ride(id = MovRGenerator.generate_uuid(), city = city, vehicle_city = city,
-                 rider_id=random.choice(users).id, vehicle_id=random.choice(vehicles).id,
-                 start_time = start_time,
-                 start_address = MovR.fake.address(),
-                 end_address = MovR.fake.address(),
-                 revenue = MovRGenerator.generate_revenue(),
-                 end_time=start_time + datetime.timedelta(minutes = random.randint(0,60))))
-            self.session.bulk_save_objects(rides)
-            self.session.commit()
+                start_time = datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 30))
+                rides.append(Ride(id=MovRGenerator.generate_uuid(),
+                                  city=city,
+                                  vehicle_city=city,
+                                  rider_id=random.choice(users).id,
+                                  vehicle_id=random.choice(vehicles).id,
+                                  start_time=start_time,
+                                  start_address=MovR.fake.address(),
+                                  end_address=MovR.fake.address(),
+                                  revenue=MovRGenerator.generate_revenue(),
+                                  end_time=start_time + datetime.timedelta(minutes=random.randint(0, 60))))
+            sess.bulk_save_objects(rides)
+
+        for chunk in range(0, num_rides, chunk_size):
+            run_transaction(sessionmaker(bind=self.engine),
+                            lambda s: add_rides_helper(s, chunk, min(chunk + chunk_size, num_rides)))
 
     def add_users(self, num_users, city):
         chunk_size = 1000
-        for chunk in range(0, num_users, chunk_size):
+
+        def add_users_helper(sess, chunk, n):
             users = []
-            for i in range(chunk, min(chunk + chunk_size, num_users)):
-                users.append(User(id = MovRGenerator.generate_uuid(), city = city,
-                                  name = MovR.fake.name(),
-                      address = MovR.fake.address(), credit_card = MovR.fake.credit_card_number()))
-            self.session.bulk_save_objects(users)
-            self.session.commit()
+            for i in range(chunk, n):
+                users.append(User(id=MovRGenerator.generate_uuid(),
+                                  city=city,
+                                  name=MovR.fake.name(),
+                                  address=MovR.fake.address(),
+                                  credit_card=MovR.fake.credit_card_number()))
+            sess.bulk_save_objects(users)
+
+        for chunk in range(0, num_users, chunk_size):
+            run_transaction(sessionmaker(bind=self.engine),
+                            lambda s: add_users_helper(s, chunk, min(chunk + chunk_size, num_users)))
 
     def add_vehicles(self, num_vehicles, city):
-        owners = self.session.query(User).filter_by(city=city).all()
         chunk_size = 1000
-        for chunk in range(0, num_vehicles, chunk_size):
+
+        def add_vehicles_helper(sess, chunk, n):
+            owners = sess.query(User).filter_by(city=city).all()
             vehicles = []
-            for i in range(chunk, min(chunk + chunk_size, num_vehicles)):
+            for i in range(chunk, n):
                 vehicle_type = MovRGenerator.generate_random_vehicle()
-                vehicles.append(Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type,
-                          city=city, owner_id=(random.choice(owners)).id, status=MovRGenerator.get_vehicle_availability(),
-                          ext=MovRGenerator.generate_vehicle_metadata(vehicle_type)))
-            self.session.bulk_save_objects(vehicles)
-            self.session.commit()
+                vehicles.append(Vehicle(id=MovRGenerator.generate_uuid(),
+                                        type=vehicle_type,
+                                        city=city,
+                                        owner_id=(random.choice(owners)).id,
+                                        status=MovRGenerator.get_vehicle_availability(),
+                                        ext=MovRGenerator.generate_vehicle_metadata(vehicle_type)))
+            sess.bulk_save_objects(vehicles)
 
-
-
-
-
-
-
-
+        for chunk in range(0, num_vehicles, chunk_size):
+            run_transaction(sessionmaker(bind=self.engine),
+                            lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
