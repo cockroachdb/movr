@@ -90,7 +90,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
                 num_retries = 0
-            except Exception, e: #@todo: catch the right exception
+            except Exception as e: #@todo: catch the right exception
                 num_retries += 1
                 exception_message = str(e)
                 logging.debug("Retry attempt %d, last attempt failed with %s", num_retries, exception_message)
