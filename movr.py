@@ -38,31 +38,10 @@ class MovR:
         MovR.fake = Faker()
 
 
+
     ##################
     # MAIN MOVR API
     #################
-
-    # setup geo-partitioning if this is an enterprise cluster
-    def add_geo_partitioning(self, partition_map):
-        logging.debug("Partitioning database with : %s", partition_map)
-        partition_string = ""
-        first_region = True
-        for region in partition_map:
-            partition_string += "PARTITION " + region + " VALUES IN (" if first_region \
-                else ", PARTITION " + region + " VALUES IN ("
-            first_region = False
-            first_city = True
-            for city in partition_map[region]:
-                partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
-                first_city = False
-            partition_string += ")"
-
-        for table in ["vehicles", "users", "rides"]:
-            logging.debug("Partitioning table: %s", table)
-            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
-            self.session.execute(partition_sql)
-
-        self.session.commit()
 
     def start_ride(self, city, rider_id, vehicle_id):
         return run_transaction(sessionmaker(bind=self.engine),
@@ -91,18 +70,40 @@ class MovR:
     # UTILITIES AND HELPERS
     ############
 
-    # @todo: get by city
+
+    # setup geo-partitioning if this is an enterprise cluster
+    def add_geo_partitioning(self, partition_map):
+        logging.debug("Partitioning database with : %s", partition_map)
+        partition_string = ""
+        first_region = True
+        for region in partition_map:
+            partition_string += "PARTITION " + region + " VALUES IN (" if first_region \
+                else ", PARTITION " + region + " VALUES IN ("
+            first_region = False
+            first_city = True
+            for city in partition_map[region]:
+                partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
+                first_city = False
+            partition_string += ")"
+
+        for table in ["vehicles", "users", "rides"]:
+            logging.debug("Partitioning table: %s", table)
+            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
+            self.session.execute(partition_sql)
+
+        self.session.commit()
+
     def get_active_rides_helper(self, session, limit=None):
         rides = self.session.query(Ride).filter_by(end_time=None).limit(limit).all()
-        return map(lambda ride: {'city': ride.city, 'id': ride.id}, rides)
+        return list(map(lambda ride: {'city': ride.city, 'id': ride.id}, rides))
 
-    def get_users_helper(self, session, city, limit):
+    def get_users_helper(self, session, city, limit=None):
         users = session.query(User).filter_by(city=city).limit(limit).all()
-        return map(lambda user: {'city': user.city, 'id': user.id}, users)
+        return list(map(lambda user: {'city': user.city, 'id': user.id}, users))
 
     def get_vehicles_helper(self, session, city, limit=None):
         vehicles = self.session.query(Vehicle).filter_by(city=city).limit(limit).all()
-        return map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles)
+        return list(map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles))
 
     def add_vehicle_helper(self, session, city, user_id):
         vehicle_type = MovRGenerator.generate_random_vehicle()

@@ -164,8 +164,6 @@ def setup_parser():
                             help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.9)
 
-
-
     return parser
 
 if __name__ == '__main__':
@@ -257,7 +255,7 @@ if __name__ == '__main__':
         with MovR(conn_string, echo=args.echo_sql) as movr:
             for city in cities:
                 movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
-                if len(movr_objects[city]["vehicles"]) == 0 or len(movr_objects[city]["users"]) == 0:
+                if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
                     logging.error("must have users and vehicles for '%s' in the movr database to generte load. try running with the 'load' command.", city)
                     sys.exit(1)
 

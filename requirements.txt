@@ -4,3 +4,4 @@ names
 faker
 sqlalchemy-utils
 psycopg2-binary
+

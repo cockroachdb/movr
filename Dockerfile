@@ -1,4 +1,4 @@
-FROM python:2
+FROM python:3
 
 WORKDIR /usr/src/app
 
@@ -6,10 +6,9 @@ COPY loadmovr.py ./
 COPY models.py ./
 COPY movr.py ./
 COPY generators.py ./
+COPY requirements.txt ./
 
-RUN pip install sqlalchemy && pip install cockroachdb && pip install names && \
-    pip install faker && pip install sqlalchemy-utils && pip install psycopg2-binary && \
-    pip install cockroachdb
+RUN pip install -r requirements.txt
 
 ENTRYPOINT [ "python", "-u", "./loadmovr.py"]
 
