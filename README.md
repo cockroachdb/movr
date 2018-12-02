@@ -2,21 +2,19 @@
 
 MovR is a fictional ride sharing company. This repo contains datasets and load generators. We plan to make this repo public in time for the CockroachDB 2.1 release.
 
-Don't forget to pull the latest version of MovR: `docker pull natestewart/movr`
-
 First, start a local database with `cockroach start --insecure --host localhost --background`
 
 Then create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
 
-Generating fake data: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10`
+Generating fake data: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10`
 
-Generating load for cities: `docker run -it --rm natestewart/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --num-threads 10 run --city "new york" --city "boston"`
+Generating load for cities: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --num-threads 10 run --city "new york" --city "boston"`
 
 
 ## Pre-built datasets
 
 ### MovR 1M
-This datasset contains 1M users, 1M rides, and 100k vehicles.
+This datas set contains 1M users, 1M rides, and 100k vehicles.
 
 
 Import Users
