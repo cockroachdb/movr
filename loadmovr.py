@@ -9,6 +9,13 @@ import threading
 from threading import Thread
 import logging
 import signal
+from faker import Faker
+from models import Base, User, Vehicle, Ride
+import datetime
+from generators import MovRGenerator
+from cockroachdb.sqlalchemy import run_transaction
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
@@ -44,16 +51,19 @@ DEFAULT_PARTITION_MAP = {
 
 # Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
 def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql = False):
+
     with MovR(conn_string, echo=echo_sql) as movr:
+        #@todo: close connection
+        engine = create_engine(conn_string, convert_unicode=True, echo=echo_sql)
         for city in cities:
             if TERMINATE_GRACEFULLY:
                 logging.debug("terminating")
                 return
             logging.info("Generating data for %s...", city)
 
-            movr.add_users(num_users, city)
-            movr.add_vehicles(num_vehicles, city)
-            movr.add_rides(num_rides, city)
+            add_users(engine, num_users, city)
+            add_vehicles(engine, num_vehicles, city)
+            add_rides(engine, num_rides, city)
 
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
@@ -62,6 +72,8 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo
 
 # Generates load evenly distributed among the provided cities
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
+
+    datagen = Faker()
 
     with MovR(conn_string, echo=echo_sql) as movr:
         num_retries = 0
@@ -77,23 +89,24 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 if random.random() < read_percentage:
                     movr.get_vehicles(active_city,25) #simulate user loading screen
                 elif random.random() < .1:
-                    movr_objects[active_city]["users"].append(movr.add_user(active_city)) #simulate new signup
+                    movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number())) #simulate new signup
                 elif random.random() < .1:
                     movr_objects[active_city]["vehicles"].append(
                         movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"])['id'])) #add vehicles
                 elif random.random() < .5:
                     ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                           random.choice(movr_objects[active_city]["vehicles"])['id'])
+                                           random.choice(movr_objects[active_city]["vehicles"])['id'],
+                                           datagen.address())
                     active_rides.append(ride)
                 else:
                     if len(active_rides):
                         ride = active_rides.pop()
-                        movr.end_ride(ride['city'], ride['id'])
+                        movr.end_ride(ride['city'], ride['id'], datagen.address())
                 num_retries = 0
             except Exception as e: #@todo: catch the right exception
                 num_retries += 1
                 exception_message = str(e)
-                logging.debug("Retry attempt %d, last attempt failed with %s", num_retries, exception_message)
+                logging.info("%s: Retry attempt %d, last attempt failed with %s", type(e).__name__, num_retries, exception_message)
 
         logging.error("Too many errors. Killing thread after exception: %s", exception_message)
 
@@ -166,6 +179,76 @@ def setup_parser():
 
     return parser
 
+##############
+# BULK DATA LOADING
+##############
+
+def add_rides(engine, num_rides, city):
+    chunk_size = 100
+    datagen = Faker()
+
+    def add_rides_helper(sess, chunk, n):
+        users = sess.query(User).filter_by(city=city).all()
+        vehicles = sess.query(Vehicle).filter_by(city=city).all()
+
+        rides = []
+        for i in range(chunk, min(chunk + chunk_size, num_rides)):
+            start_time = datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 30))
+            rides.append(Ride(id=MovRGenerator.generate_uuid(),
+                              city=city,
+                              vehicle_city=city,
+                              rider_id=random.choice(users).id,
+                              vehicle_id=random.choice(vehicles).id,
+                              start_time=start_time,
+                              start_address=datagen.address(),
+                              end_address=datagen.address(),
+                              revenue=MovRGenerator.generate_revenue(),
+                              end_time=start_time + datetime.timedelta(minutes=random.randint(0, 60))))
+        sess.bulk_save_objects(rides)
+
+    for chunk in range(0, num_rides, chunk_size):
+        run_transaction(sessionmaker(bind=engine),
+                        lambda s: add_rides_helper(s, chunk, min(chunk + chunk_size, num_rides)))
+
+def add_users(engine, num_users, city):
+    chunk_size = 1000
+    datagen = Faker()
+
+    def add_users_helper(sess, chunk, n):
+        users = []
+        for i in range(chunk, n):
+            users.append(User(id=MovRGenerator.generate_uuid(),
+                              city=city,
+                              name=datagen.name(),
+                              address=datagen.address(),
+                              credit_card=datagen.credit_card_number()))
+        sess.bulk_save_objects(users)
+
+    for chunk in range(0, num_users, chunk_size):
+        run_transaction(sessionmaker(bind=engine),
+                        lambda s: add_users_helper(s, chunk, min(chunk + chunk_size, num_users)))
+
+def add_vehicles(engine, num_vehicles, city):
+    chunk_size = 1000
+    datagen = Faker()
+
+    def add_vehicles_helper(sess, chunk, n):
+        owners = sess.query(User).filter_by(city=city).all()
+        vehicles = []
+        for i in range(chunk, n):
+            vehicle_type = MovRGenerator.generate_random_vehicle()
+            vehicles.append(Vehicle(id=MovRGenerator.generate_uuid(),
+                                    type=vehicle_type,
+                                    city=city,
+                                    owner_id=(random.choice(owners)).id,
+                                    status=MovRGenerator.get_vehicle_availability(),
+                                    ext=MovRGenerator.generate_vehicle_metadata(vehicle_type)))
+        sess.bulk_save_objects(vehicles)
+
+    for chunk in range(0, num_vehicles, chunk_size):
+        run_transaction(sessionmaker(bind=engine),
+                        lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
+
 if __name__ == '__main__':
 
     signal.signal(signal.SIGINT, signal_handler) #support ctrl + c to exit multithreaded operation
@@ -221,6 +304,7 @@ if __name__ == '__main__':
 
         RUNNING_THREADS = []
 
+        #@todo: catch exceptions in threads so ending counts are accurate.
         for i in range(usable_threads):
             if len(cities_to_load) > 0:
                 t = Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
