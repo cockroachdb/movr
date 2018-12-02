@@ -62,6 +62,15 @@ class MovR:
 
         run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, city, ride_id))
 
+    def update_vehicle_location(self, city, ride_id, new_address):
+        def update_vehicle_location_helper(session, city, ride_id, new_address):
+            ride = session.query(Ride).filter_by(city=city, id=ride_id).first()
+            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
+            v.current_location = new_address
+
+        run_transaction(sessionmaker(bind=self.engine),
+                        lambda session: update_vehicle_location_helper(session, city, ride_id, new_address))
+
     def add_user(self, city, name, address, credit_card_number):
         def add_user_helper(session, city, name, address, credit_card_number):
             u = User(city=city, id=MovRGenerator.generate_uuid(), name=name,
@@ -100,13 +109,13 @@ class MovR:
 
         return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, city, limit))
 
-    def get_active_rides(self, limit=None):
+    def get_active_rides(self, city, limit=None):
+        def get_active_rides_helper(session, city, limit=None):
+            rides = session.query(Ride).filter_by(city=city, end_time=None).limit(limit).all()
+            return list(map(lambda ride: {'city': city, 'id': ride.id}, rides))
 
-        def get_active_rides_helper(session, limit=None):
-            rides = session.query(Ride).filter_by(end_time=None).limit(limit).all()
-            return list(map(lambda ride: {'city': ride.city, 'id': ride.id}, rides))
-
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_active_rides_helper(session, limit))
+        return run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: get_active_rides_helper(session, city, limit))
 
 
     ############

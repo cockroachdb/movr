@@ -87,24 +87,36 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 active_city = random.choice(cities)
 
                 if random.random() < read_percentage:
-                    movr.get_vehicles(active_city,25) #simulate user loading screen
-                elif random.random() < .1:
-                    movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number())) #simulate new signup
-                elif random.random() < .1:
-                    movr_objects[active_city]["vehicles"].append(
-                        movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                        type = MovRGenerator.generate_random_vehicle(),
-                                        vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
-                                        status=MovRGenerator.get_vehicle_availability(),
-                                        current_location = datagen.address())) #add vehicles
-                elif random.random() < .5:
-                    ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                           random.choice(movr_objects[active_city]["vehicles"])['id'])
-                    active_rides.append(ride)
+                    # simulate user loading screen
+                    movr.get_vehicles(active_city,25)
                 else:
-                    if len(active_rides):
-                        ride = active_rides.pop()
-                        movr.end_ride(ride['city'], ride['id'])
+                    #update the locations of all moving vehicles every write opportunity
+                    for ride in active_rides:
+                        movr.update_vehicle_location(ride['city'], ride['id'], datagen.address())
+
+                    #do other updates randomly
+                    if random.random() < .1:
+                        # simulate new signup
+                        movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                    elif random.random() < .1:
+                        # simulate a user adding a new vehicle to the population
+                        movr_objects[active_city]["vehicles"].append(
+                            movr.add_vehicle(active_city,
+                                            owner_id = random.choice(movr_objects[active_city]["users"])['id'],
+                                            type = MovRGenerator.generate_random_vehicle(),
+                                            vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
+                                            status=MovRGenerator.get_vehicle_availability(),
+                                            current_location = datagen.address()))
+                    elif random.random() < .5:
+                        # simulate a user starting a ride
+                        ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
+                                               random.choice(movr_objects[active_city]["vehicles"])['id'])
+                        active_rides.append(ride)
+                    else:
+                        if len(active_rides):
+                            #simulate a ride ending
+                            ride = active_rides.pop()
+                            movr.end_ride(ride['city'], ride['id'])
                 num_retries = 0
             except Exception as e: #@todo: catch the right exception
                 num_retries += 1
@@ -340,13 +352,13 @@ if __name__ == '__main__':
         movr_objects = {}
 
         with MovR(conn_string, echo=args.echo_sql) as movr:
+            active_rides = []
             for city in cities:
                 movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
                 if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
                     logging.error("must have users and vehicles for '%s' in the movr database to generte load. try running with the 'load' command.", city)
                     sys.exit(1)
-
-            active_rides = movr.get_active_rides()
+                active_rides.extend(movr.get_active_rides(city))
 
         RUNNING_THREADS = []
         for i in range(args.num_threads):
