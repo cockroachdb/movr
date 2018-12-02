@@ -92,16 +92,19 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number())) #simulate new signup
                 elif random.random() < .1:
                     movr_objects[active_city]["vehicles"].append(
-                        movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"])['id'])) #add vehicles
+                        movr.add_vehicle(active_city, random.choice(movr_objects[active_city]["users"])['id'],
+                                        type = MovRGenerator.generate_random_vehicle(),
+                                        vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
+                                        status=MovRGenerator.get_vehicle_availability(),
+                                        current_location = datagen.address())) #add vehicles
                 elif random.random() < .5:
                     ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                           random.choice(movr_objects[active_city]["vehicles"])['id'],
-                                           datagen.address())
+                                           random.choice(movr_objects[active_city]["vehicles"])['id'])
                     active_rides.append(ride)
                 else:
                     if len(active_rides):
                         ride = active_rides.pop()
-                        movr.end_ride(ride['city'], ride['id'], datagen.address())
+                        movr.end_ride(ride['city'], ride['id'])
                 num_retries = 0
             except Exception as e: #@todo: catch the right exception
                 num_retries += 1

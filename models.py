@@ -55,6 +55,7 @@ class Vehicle(Base):
     owner_id = Column(UUID)
     creation_time = Column(DateTime, default=datetime.datetime.now)
     status = Column(String)
+    current_location = Column(String)
     ext = Column(JSONB)
     PrimaryKeyConstraint(city, id)
     __table_args__ = (ForeignKeyConstraint([city, owner_id], ["users.city", "users.id"]),)

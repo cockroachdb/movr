@@ -36,30 +36,31 @@ class MovR:
     # MAIN MOVR API
     #################
 
-    def start_ride(self, city, rider_id, vehicle_id, address):
+    def start_ride(self, city, rider_id, vehicle_id):
 
-        def start_ride_helper(session, city, rider_id, vehicle_id, address):
+        def start_ride_helper(session, city, rider_id, vehicle_id):
+            v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
+
             r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,
-                     start_address=address)  # @todo: this should be the address of the vehicle
+                     start_address=v.current_location)
             session.add(r)
-            v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
             v.status = "in_use"
             return {'city': r.city, 'id': r.id}
 
         return run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: start_ride_helper(session, city, rider_id, vehicle_id, address))
+                               lambda session: start_ride_helper(session, city, rider_id, vehicle_id))
 
-    def end_ride(self, city, ride_id, address):
-        def end_ride_helper(session, city, ride_id, address):
+    def end_ride(self, city, ride_id):
+        def end_ride_helper(session, city, ride_id):
             ride = session.query(Ride).filter_by(city=city, id=ride_id).first()
-            ride.end_address = address
+            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
+            ride.end_address = v.current_location
             ride.revenue = MovRGenerator.generate_revenue()
             ride.end_time = datetime.datetime.now()
-            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
             v.status = "available"
 
-        run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, city, ride_id, address))
+        run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, city, ride_id))
 
     def add_user(self, city, name, address, credit_card_number):
         def add_user_helper(session, city, name, address, credit_card_number):
@@ -70,17 +71,21 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: add_user_helper(session, city, name, address, credit_card_number))
 
-    def add_vehicle(self, city, user_id):
-        def add_vehicle_helper(session, city, user_id):
-            vehicle_type = MovRGenerator.generate_random_vehicle()
+    def add_vehicle(self, city, owner_id, current_location, type, vehicle_metadata, status):
+        def add_vehicle_helper(session, city, owner_id, current_location, type, vehicle_metadata, status):
+            vehicle_type = type
 
             vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type,
-                              city=city, owner_id=user_id, status=MovRGenerator.get_vehicle_availability(),
-                              ext=MovRGenerator.generate_vehicle_metadata(vehicle_type))
+                              city=city, owner_id=owner_id, current_location = current_location,
+                              status=status,
+                              ext=vehicle_metadata)
 
             session.add(vehicle)
             return {'city': vehicle.city, 'id': vehicle.id}
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: add_vehicle_helper(session, city, user_id))
+        return run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: add_vehicle_helper(session,
+                                                                  city, owner_id, current_location, type,
+                                                                  vehicle_metadata, status))
 
     def get_users(self, city, limit=None):
         def get_users_helper(session, city, limit=None):
