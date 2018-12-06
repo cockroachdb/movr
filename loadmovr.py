@@ -39,7 +39,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-
+#@todo: pass this in as an argument
 logging.basicConfig(level=logging.INFO,
                     format='[%(levelname)s] (%(threadName)-10s) %(message)s',)
 
@@ -53,16 +53,17 @@ DEFAULT_PARTITION_MAP = {
 def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql = False):
 
     with MovR(conn_string, echo=echo_sql) as movr:
-        #@todo: close connection
         engine = create_engine(conn_string, convert_unicode=True, echo=echo_sql)
         for city in cities:
             if TERMINATE_GRACEFULLY:
                 logging.debug("terminating")
-                return
-            logging.info("Generating data for %s...", city)
+                break
 
+            logging.info("Generating user data for %s...", city)
             add_users(engine, num_users, city)
+            logging.info("Generating vehicle data for %s...", city)
             add_vehicles(engine, num_vehicles, city)
+            logging.info("Generating ride data for %s...", city)
             add_rides(engine, num_rides, city)
 
             logging.info("populated %s in %f seconds",
@@ -126,8 +127,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
         logging.error("Too many errors. Killing thread after exception: %s", exception_message)
 
 
-
-
+# takes creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
 def extract_partition_pairs_from_cli(pair_list):
     if pair_list is None:
         return DEFAULT_PARTITION_MAP
@@ -245,8 +245,6 @@ def add_users(engine, num_users, city):
 
 def add_vehicles(engine, num_vehicles, city):
     chunk_size = 1000
-    datagen = Faker()
-
     def add_vehicles_helper(sess, chunk, n):
         owners = sess.query(User).filter_by(city=city).all()
         vehicles = []
@@ -266,7 +264,8 @@ def add_vehicles(engine, num_vehicles, city):
 
 if __name__ == '__main__':
 
-    signal.signal(signal.SIGINT, signal_handler) #support ctrl + c to exit multithreaded operation
+    # support ctrl + c for exiting multithreaded operation
+    signal.signal(signal.SIGINT, signal_handler)
 
     args = setup_parser().parse_args()
 
@@ -309,6 +308,9 @@ if __name__ == '__main__':
 
 
         usable_threads = min(args.num_threads, len(all_cities)) #don't create more than 1 thread per city
+        if usable_threads < args.num_threads:
+            logging.info("Only using %d of %d requested threads, since we only create at most one thread per city",
+                         usable_threads, args.num_threads)
 
         cities_per_thread = int(math.ceil((float(len(all_cities)) / usable_threads)))
         num_users_per_city = int(math.ceil((float(args.num_users) / len(all_cities))))
