@@ -278,7 +278,6 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads
 
     RUNNING_THREADS = []
 
-    # @todo: catch exceptions in threads so ending counts are accurate.
     for i in range(usable_threads):
         if len(cities_to_load) > 0:
             t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
