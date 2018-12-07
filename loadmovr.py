@@ -16,6 +16,7 @@ from generators import MovRGenerator
 from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+import re
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
@@ -269,8 +270,8 @@ if __name__ == '__main__':
 
     args = setup_parser().parse_args()
 
-    if args.conn_string.find("/movr") < 0:
-        logging.error("The connection string needs to point to a database named 'movr'")
+    if not re.search('.*26257/(.*)\?', args.conn_string):
+        logging.error("The connection string needs to point to a database. Example: postgres://root@localhost:26257/mymovrdatabase?sslmode=disable")
         sys.exit(1)
 
     if args.num_threads <= 0:
