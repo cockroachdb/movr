@@ -16,7 +16,7 @@ Generating load for cities: `docker run -it --rm cockroachdb/movr --url "postgre
 ## Pre-built datasets
 
 ### MovR 1M
-This datas set contains 1M users, 1M rides, and 100k vehicles.
+This dataset contains 1M users, 1M rides, and 100k vehicles.
 
 
 Import Users
