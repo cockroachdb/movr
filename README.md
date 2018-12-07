@@ -1,10 +1,12 @@
 # MovR
 
-MovR is a fictional ride sharing company. This repo contains datasets and load generators. We plan to make this repo public in time for the CockroachDB 2.1 release.
+MovR is a fictional ride sharing company. This repo contains links to datasets and a load generator.
 
-First, start a local database with `cockroach start --insecure --host localhost --background`
 
-Then create the database movr with `cockroach sql --insecure --host localhost -e "create database movr;"`
+## Getting started
+First, [download CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb.html) and start a local cluster with `cockroach start --insecure --host localhost --background`
+
+Then create the database `movr` with `cockroach sql --insecure --host localhost -e "create database movr;"`
 
 Generating fake data: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10`
 
@@ -99,33 +101,4 @@ ALTER TABLE vehicles VALIDATE CONSTRAINT fk_city_ref_users;
 ALTER TABLE rides VALIDATE CONSTRAINT fk_city_ref_users;
 ALTER TABLE rides VALIDATE CONSTRAINT fk_vehicle_city_ref_vehicles;
 
-```
-
-### Adding geo-partitioning
-
-If your cluster has an enterprise license key, you can enable geo-partitioning.
-
-```
-ALTER TABLE users PARTITION BY LIST (city) (
-PARTITION us_west VALUES IN (('san francisco'), ('seattle'), ('los angeles')),
-PARTITION eu_west VALUES IN (('amsterdam'), ('paris'), ('rome')),
-PARTITION us_east VALUES IN (('new york'), ('boston'), ('washington dc'))
-);
-```
-
-
-```
-ALTER TABLE vehicles PARTITION BY LIST (city) (
-PARTITION us_west VALUES IN (('san francisco'), ('seattle'), ('los angeles')),
-PARTITION eu_west VALUES IN (('amsterdam'), ('paris'), ('rome')),
-PARTITION us_east VALUES IN (('new york'), ('boston'), ('washington dc'))
-);
-```
-
-```
-ALTER TABLE rides PARTITION BY LIST (city) (
-PARTITION us_west VALUES IN (('san francisco'), ('seattle'), ('los angeles')),
-PARTITION eu_west VALUES IN (('amsterdam'), ('paris'), ('rome')),
-PARTITION us_east VALUES IN (('new york'), ('boston'), ('washington dc'))
-);
 ```
