@@ -7,9 +7,6 @@ from generators import MovRGenerator
 
 import datetime, logging
 
-logging.basicConfig(level=logging.INFO,
-                    format='[%(levelname)s] (%(threadName)-10s) %(message)s',)
-
 class MovR:
 
     def __enter__(self):

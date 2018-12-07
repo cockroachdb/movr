@@ -39,9 +39,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-#@todo: pass this in as an argument
-logging.basicConfig(level=logging.INFO,
-                    format='[%(levelname)s] (%(threadName)-10s) %(message)s',)
+
 
 DEFAULT_PARTITION_MAP = {
     "us_east": ["new york", "boston", "washington dc"],
@@ -158,6 +156,8 @@ def setup_parser():
     ##########
     parser.add_argument('--num-threads', dest='num_threads', type=int, default=5,
                             help='The number threads to use for MovR (default =5)')
+    parser.add_argument('--log-level', dest='log_level', default='info',
+                        help='The log level ([debug|info|warning|error]) for MovR messages. (default = info)')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
 
@@ -276,6 +276,20 @@ if __name__ == '__main__':
     if args.num_threads <= 0:
         logging.error("Number of threads must be greater than 0.")
         sys.exit(1)
+
+    if args.log_level not in ['debug', 'info', 'warning', 'error']:
+        logging.error("Invalid log level: %s", args.log_level)
+        sys.exit(1)
+
+    level_map = {
+        'debug': logging.DEBUG,
+        'info': logging.INFO,
+        'warning': logging.WARNING,
+        'error': logging.ERROR
+    }
+
+    logging.basicConfig(level=level_map[args.log_level],
+                        format='[%(levelname)s] (%(threadName)-10s) %(message)s', )
 
 
     logging.info("Connected to movr database @ %s" % args.conn_string)
