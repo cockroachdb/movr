@@ -1,26 +1,18 @@
 #!/usr/bin/python
 
-import argparse
 from movr import MovR
-import random, math
-import sys, os
-import time
-import threading
-from threading import Thread
-import logging
-import signal
-from faker import Faker
-from models import Base, User, Vehicle, Ride
-import datetime
 from generators import MovRGenerator
+import argparse
+import sys, os, time, datetime, random, math, signal, threading, re
+import logging
+from faker import Faker
+from models import User, Vehicle, Ride
 from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-import re
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
-
 
 def signal_handler(sig, frame):
     global TERMINATE_GRACEFULLY
@@ -50,7 +42,10 @@ DEFAULT_PARTITION_MAP = {
 
 # Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
 def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql = False):
+    if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
+        raise ValueError("The number of objects to generate must be > 0")
 
+    start_time = time.time()
     with MovR(conn_string, echo=echo_sql) as movr:
         engine = create_engine(conn_string, convert_unicode=True, echo=echo_sql)
         for city in cities:
@@ -70,63 +65,55 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo
 
     return
 
-# Generates load evenly distributed among the provided cities
+# Generates evenly distributed load among the provided cities
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
 
     datagen = Faker()
 
     with MovR(conn_string, echo=echo_sql) as movr:
-        num_retries = 0
-        exception_message = ""
-        while True and num_retries < 5:
-            try:
-                if TERMINATE_GRACEFULLY:
-                    logging.debug("Terminating thread.")
-                    return
+        while True:
 
-                active_city = random.choice(cities)
+            if TERMINATE_GRACEFULLY:
+                logging.debug("Terminating thread.")
+                return
 
-                if random.random() < read_percentage:
-                    # simulate user loading screen
-                    movr.get_vehicles(active_city,25)
+            active_city = random.choice(cities)
+
+            if random.random() < read_percentage:
+                # simulate user loading screen
+                movr.get_vehicles(active_city,25)
+            else:
+                #update the locations of all moving vehicles with every write opportunity
+                for ride in active_rides:
+                    movr.update_vehicle_location(ride['city'], ride['id'], datagen.address())
+
+                #do other updates randomly
+                if random.random() < .1:
+                    # simulate new signup
+                    movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                elif random.random() < .1:
+                    # simulate a user adding a new vehicle to the population
+                    movr_objects[active_city]["vehicles"].append(
+                        movr.add_vehicle(active_city,
+                                        owner_id = random.choice(movr_objects[active_city]["users"])['id'],
+                                        type = MovRGenerator.generate_random_vehicle(),
+                                        vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
+                                        status=MovRGenerator.get_vehicle_availability(),
+                                        current_location = datagen.address()))
+                elif random.random() < .5:
+                    # simulate a user starting a ride
+                    ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
+                                           random.choice(movr_objects[active_city]["vehicles"])['id'])
+                    active_rides.append(ride)
                 else:
-                    #update the locations of all moving vehicles every write opportunity
-                    for ride in active_rides:
-                        movr.update_vehicle_location(ride['city'], ride['id'], datagen.address())
-
-                    #do other updates randomly
-                    if random.random() < .1:
-                        # simulate new signup
-                        movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
-                    elif random.random() < .1:
-                        # simulate a user adding a new vehicle to the population
-                        movr_objects[active_city]["vehicles"].append(
-                            movr.add_vehicle(active_city,
-                                            owner_id = random.choice(movr_objects[active_city]["users"])['id'],
-                                            type = MovRGenerator.generate_random_vehicle(),
-                                            vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
-                                            status=MovRGenerator.get_vehicle_availability(),
-                                            current_location = datagen.address()))
-                    elif random.random() < .5:
-                        # simulate a user starting a ride
-                        ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                               random.choice(movr_objects[active_city]["vehicles"])['id'])
-                        active_rides.append(ride)
-                    else:
-                        if len(active_rides):
-                            #simulate a ride ending
-                            ride = active_rides.pop()
-                            movr.end_ride(ride['city'], ride['id'])
-                num_retries = 0
-            except Exception as e: #@todo: catch the right exception
-                num_retries += 1
-                exception_message = str(e)
-                logging.info("%s: Retry attempt %d, last attempt failed with %s", type(e).__name__, num_retries, exception_message)
-
-        logging.error("Too many errors. Killing thread after exception: %s", exception_message)
+                    if len(active_rides):
+                        #simulate a ride ending
+                        ride = active_rides.pop()
+                        movr.end_ride(ride['city'], ride['id'])
 
 
-# takes creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
+
+# creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
 def extract_partition_pairs_from_cli(pair_list):
     if pair_list is None:
         return DEFAULT_PARTITION_MAP
@@ -263,6 +250,83 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
+def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads,
+                    skip_reload_tables, echo_sql, enable_geo_partitioning):
+    if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
+        raise ValueError("The number of objects to generate must be > 0")
+
+    start_time = time.time()
+    with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
+        if enable_geo_partitioning:
+            movr.add_geo_partitioning(partition_city_map)
+
+        logging.info("loading cities %s", all_cities)
+        logging.info("loading movr data with ~%d users, ~%d vehicles, and ~%d rides",
+                     num_users, num_vehicles, num_rides)
+
+    usable_threads = min(num_threads, len(all_cities))  # don't create more than 1 thread per city
+    if usable_threads < num_threads:
+        logging.info("Only using %d of %d requested threads, since we only create at most one thread per city",
+                     usable_threads, num_threads)
+
+    cities_per_thread = int(math.ceil((float(len(all_cities)) / usable_threads)))
+    num_users_per_city = int(math.ceil((float(num_users) / len(all_cities))))
+    num_rides_per_city = int(math.ceil((float(num_rides) / len(all_cities))))
+    num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(all_cities))))
+
+    cities_to_load = all_cities
+
+    RUNNING_THREADS = []
+
+    # @todo: catch exceptions in threads so ending counts are accurate.
+    for i in range(usable_threads):
+        if len(cities_to_load) > 0:
+            t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
+                                                              num_rides_per_city, cities_to_load[:cities_per_thread],
+                                                              echo_sql))
+            cities_to_load = cities_to_load[cities_per_thread:]
+            t.start()
+            RUNNING_THREADS.append(t)
+
+    while threading.active_count() > 1:  # keep main thread alive so we can catch ctrl + c
+        time.sleep(0.1)
+
+    duration = time.time() - start_time
+
+    logging.info("populated %s cities in %f seconds", len(all_cities), duration)
+    logging.info("- %f users/second", float(num_users_per_city * len(all_cities)) / duration)
+    logging.info("- %f rides/second", float(num_rides_per_city * len(all_cities)) / duration)
+    logging.info("- %f vehicles/second", float(num_vehicles_per_city * len(all_cities)) / duration)
+
+# generate fake load for objects within the provided city list
+def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_threads):
+    if read_percentage < 0 or read_percentage > 1:
+        raise ValueError("read percentage must be between 0 and 1")
+
+    cities = all_cities if city_list is None else city_list
+    logging.info("simulating movr load for cities %s", cities)
+
+    movr_objects = {}
+
+    with MovR(conn_string, echo=echo_sql) as movr:
+        active_rides = []
+        for city in cities:
+            movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
+            if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
+                logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
+                sys.exit(1)
+            active_rides.extend(movr.get_active_rides(city))
+
+    RUNNING_THREADS = []
+    for i in range(num_threads):
+        t = threading.Thread(target=simulate_movr_load, args=(conn_string, cities, movr_objects,
+                                                    active_rides, read_percentage, echo_sql ))
+        t.start()
+        RUNNING_THREADS.append(t)
+
+    while True: #keep main thread alive to catch exit signals
+        time.sleep(0.5)
+
 if __name__ == '__main__':
 
     # support ctrl + c for exiting multithreaded operation
@@ -307,85 +371,12 @@ if __name__ == '__main__':
         all_cities += partition_city_map[partition]
 
     if args.subparser_name=='load':
-
-        if args.num_users <= 0 or args.num_rides <= 0 or args.num_vehicles <= 0:
-            logging.error("The number of objects to generate must be > 0")
-            sys.exit(1)
-
-        start_time = time.time()
-        with MovR(conn_string, init_tables=(not args.skip_reload_tables), echo=args.echo_sql) as movr:
-            if args.enable_geo_partitioning:
-                movr.add_geo_partitioning(partition_city_map)
-
-            logging.info("loading cities %s", all_cities)
-            logging.info("loading movr data with ~%d users, ~%d vehicles, and ~%d rides",
-                  args.num_users, args.num_vehicles, args.num_rides)
-
-
-        usable_threads = min(args.num_threads, len(all_cities)) #don't create more than 1 thread per city
-        if usable_threads < args.num_threads:
-            logging.info("Only using %d of %d requested threads, since we only create at most one thread per city",
-                         usable_threads, args.num_threads)
-
-        cities_per_thread = int(math.ceil((float(len(all_cities)) / usable_threads)))
-        num_users_per_city = int(math.ceil((float(args.num_users) / len(all_cities))))
-        num_rides_per_city = int(math.ceil((float(args.num_rides) / len(all_cities))))
-        num_vehicles_per_city = int(math.ceil((float(args.num_vehicles) / len(all_cities))))
-
-        cities_to_load = all_cities
-
-        RUNNING_THREADS = []
-
-        #@todo: catch exceptions in threads so ending counts are accurate.
-        for i in range(usable_threads):
-            if len(cities_to_load) > 0:
-                t = Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
-                                                        num_rides_per_city, cities_to_load[:cities_per_thread], args.echo_sql))
-                cities_to_load = cities_to_load[cities_per_thread:]
-                t.start()
-                RUNNING_THREADS.append(t)
-
-        while threading.active_count() > 1: #keep main thread alive so we can catch ctrl + c
-            time.sleep(0.1)
-
-
-        duration = time.time() - start_time
-
-        logging.info("populated %s cities in %f seconds", len(all_cities), duration)
-        logging.info("- %f users/second", float(num_users_per_city * len(all_cities))/duration)
-        logging.info("- %f rides/second", float(num_rides_per_city * len(all_cities))/duration)
-        logging.info("- %f vehicles/second", float(num_vehicles_per_city * len(all_cities))/duration)
-
-
+        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_threads,
+                        args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning)
     else:
+        run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
 
-        if args.read_percentage < 0 or args.read_percentage > 1:
-            logging.error("read percentage must be between 0 and 1")
-            sys.exit(1)
 
-        cities = all_cities if args.city is None else args.city
-        logging.info("simulating movr load for cities %s", cities)
-
-        movr_objects = {}
-
-        with MovR(conn_string, echo=args.echo_sql) as movr:
-            active_rides = []
-            for city in cities:
-                movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
-                if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
-                    logging.error("must have users and vehicles for '%s' in the movr database to generte load. try running with the 'load' command.", city)
-                    sys.exit(1)
-                active_rides.extend(movr.get_active_rides(city))
-
-        RUNNING_THREADS = []
-        for i in range(args.num_threads):
-            t = Thread(target=simulate_movr_load, args=(conn_string, cities, movr_objects,
-                                                        active_rides, args.read_percentage, args.echo_sql ))
-            t.start()
-            RUNNING_THREADS.append(t)
-
-        while True: #keep main thread alive to catch exit signals
-            time.sleep(0.5)
 
 
 
