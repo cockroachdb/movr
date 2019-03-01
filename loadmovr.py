@@ -38,6 +38,7 @@ def signal_handler(sig, frame):
 DEFAULT_PARTITION_MAP = {
     "us_east": ["new york", "boston", "washington dc"],
     "us_west": ["san francisco", "seattle", "los angeles"],
+    "us_central": ["chicago", "detroit", "minneapolis"],
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
