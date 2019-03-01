@@ -10,6 +10,7 @@ from models import User, Vehicle, Ride
 from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from urllib.parse import parse_qs, urlsplit, urlunsplit, urlencode
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
@@ -131,6 +132,14 @@ def extract_partition_pairs_from_cli(pair_list):
 
     return partition_pairs
 
+
+def set_query_parameter(url, param_name, param_value):
+    scheme, netloc, path, query_string, fragment = urlsplit(url)
+    query_params = parse_qs(query_string)
+    query_params[param_name] = [param_value]
+    new_query_string = urlencode(query_params, doseq=True)
+    return urlunsplit((scheme, netloc, path, new_query_string, fragment))
+
 def setup_parser():
     parser = argparse.ArgumentParser(description='CLI for MovR.')
     subparsers = parser.add_subparsers(dest='subparser_name')
@@ -142,6 +151,8 @@ def setup_parser():
                             help='The number threads to use for MovR (default =5)')
     parser.add_argument('--log-level', dest='log_level', default='info',
                         help='The log level ([debug|info|warning|error]) for MovR messages. (default = info)')
+    parser.add_argument('--app-name', dest='app_name', default='movr',
+                        help='The name that can be used for filtering statements by client in the Admin UI.')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
 
@@ -359,6 +370,7 @@ if __name__ == '__main__':
     #format connection string to work with our cockroachdb driver.
     conn_string = args.conn_string.replace("postgres://", "cockroachdb://")
     conn_string = conn_string.replace("postgresql://", "cockroachdb://")
+    conn_string = set_query_parameter(conn_string, "application_name", args.app_name)
 
     # population partitions
     partition_city_map = extract_partition_pairs_from_cli(args.partition_pair if args.subparser_name=='load' else None)
