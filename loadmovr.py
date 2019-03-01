@@ -38,6 +38,7 @@ def signal_handler(sig, frame):
 DEFAULT_PARTITION_MAP = {
     "us_east": ["new york", "boston", "washington dc"],
     "us_west": ["san francisco", "seattle", "los angeles"],
+    "us_central": ["chicago", "detroit", "minneapolis"],
     "eu_west": ["amsterdam", "paris", "rome"]
 }
 
@@ -111,26 +112,26 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
 
 # creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
-def extract_partition_pairs_from_cli(pair_list):
+def extract_city_pairs_from_cli(pair_list):
     if pair_list is None:
         return DEFAULT_PARTITION_MAP
 
-    partition_pairs = {}
+    city_pairs = {}
 
-    for partition_pair in pair_list:
-        pair = partition_pair.split(":")
+    for city_pair in pair_list:
+        pair = city_pair.split(":")
         if len(pair) < 1:
             pair = ["default"].append(pair[0])
         else:
             pair = [pair[0], ":".join(pair[1:])]  # if there are many semicolons convert this to only two items
 
 
-        if pair[0] in partition_pairs:
-            partition_pairs[pair[0]].append(pair[1])
+        if pair[0] in city_pairs:
+            city_pairs[pair[0]].append(pair[1])
         else:
-            partition_pairs[pair[0]] = [pair[1]]
+            city_pairs[pair[0]] = [pair[1]]
 
-    return partition_pairs
+    return city_pairs
 
 
 def set_query_parameter(url, param_name, param_value):
@@ -169,8 +170,9 @@ def setup_parser():
                              help='The number of random vehicles to add to the dataset')
     load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500,
                              help='The number of random rides to add to the dataset')
-    load_parser.add_argument('--partition-by', dest='partition_pair', action='append',
-                             help='Pairs in the form <partition>:<city_id> that will be used to enable geo-partitioning. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
+    load_parser.add_argument('--city-pair', dest='city_pair', action='append',
+                             help='Pairs in the form <region>:<city_id> that will be used to enable geo-partitioning. If geo-partitioning is not enabled'
+                                  'this will simply load random data for each of the cities specified. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
                              help='Set this if your cluster has an enterprise license (https://cockroa.ch/2BoAlgB) and you want to use geo-partitioning functionality (https://cockroa.ch/2wd96zF)')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
@@ -373,7 +375,7 @@ if __name__ == '__main__':
     conn_string = set_query_parameter(conn_string, "application_name", args.app_name)
 
     # population partitions
-    partition_city_map = extract_partition_pairs_from_cli(args.partition_pair if args.subparser_name=='load' else None)
+    partition_city_map = extract_city_pairs_from_cli(args.city_pair if args.subparser_name=='load' else None)
 
     all_cities = []
     for partition in partition_city_map:
