@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import Base, User, Vehicle, Ride
+from models import Base, User, Vehicle, Ride, VehicleLocationHistory
 
 from cockroachdb.sqlalchemy import run_transaction
 from generators import MovRGenerator
@@ -59,14 +59,13 @@ class MovR:
 
         run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, city, ride_id))
 
-    def update_vehicle_location(self, city, ride_id, new_address):
-        def update_vehicle_location_helper(session, city, ride_id, new_address):
-            ride = session.query(Ride).filter_by(city=city, id=ride_id).first()
-            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
-            v.current_location = new_address
+    def update_ride_location(self, city, ride_id, lat, long):
+        def update_ride_location_helper(session, city, ride_id, lat, long):
+            h = VehicleLocationHistory(city = city, ride_id = ride_id, lat = lat, long = long)
+            session.add(h)
 
         run_transaction(sessionmaker(bind=self.engine),
-                        lambda session: update_vehicle_location_helper(session, city, ride_id, new_address))
+                        lambda session: update_ride_location_helper(session, city, ride_id, lat, long))
 
     def add_user(self, city, name, address, credit_card_number):
         def add_user_helper(session, city, name, address, credit_card_number):

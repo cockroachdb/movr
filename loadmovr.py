@@ -79,12 +79,23 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 logging.debug("Terminating thread.")
                 return
 
+
+
+
+
             active_city = random.choice(cities)
 
             if random.random() < read_percentage:
                 # simulate user loading screen
                 movr.get_vehicles(active_city,25)
             else:
+
+                # simulate the various vehicles in the selected cities updating their locations while they are on trips
+                for ride in active_rides:
+                    latlong = MovRGenerator.generate_random_latlong()
+                    movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
+                                              long=latlong['long'])
+
                 #do write operations randomly
                 if random.random() < .1:
                     # simulate new signup
@@ -108,6 +119,8 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                         #simulate a ride ending
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
+
+
 
 
 
@@ -242,6 +255,8 @@ def add_users(engine, num_users, city):
 
 def add_vehicles(engine, num_vehicles, city):
     chunk_size = 1000
+    datagen = Faker()
+
     def add_vehicles_helper(sess, chunk, n):
         owners = sess.query(User).filter_by(city=city).all()
         vehicles = []
@@ -250,6 +265,7 @@ def add_vehicles(engine, num_vehicles, city):
             vehicles.append(Vehicle(id=MovRGenerator.generate_uuid(),
                                     type=vehicle_type,
                                     city=city,
+                                    current_location=datagen.address(),
                                     owner_id=(random.choice(owners)).id,
                                     status=MovRGenerator.get_vehicle_availability(),
                                     ext=MovRGenerator.generate_vehicle_metadata(vehicle_type)))
@@ -324,6 +340,7 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
             if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
                 logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
                 sys.exit(1)
+
             active_rides.extend(movr.get_active_rides(city))
 
     logging.info("starting load")
