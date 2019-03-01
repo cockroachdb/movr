@@ -152,7 +152,7 @@ def setup_parser():
     parser.add_argument('--log-level', dest='log_level', default='info',
                         help='The log level ([debug|info|warning|error]) for MovR messages. (default = info)')
     parser.add_argument('--app-name', dest='app_name', default='movr',
-                        help='The name that can be used for filtering statements by movr client in the Web UI statements page.')
+                        help='The name that can be used for filtering statements by client in the Admin UI.')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
 
