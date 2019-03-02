@@ -46,6 +46,19 @@ class Ride(Base):
     def __repr__(self):
         return "<Ride(city='%s', id='%s', rider_id='%s', vehicle_id='%s')>" % (self.city, self.id, self.rider_id, self.vehicle_id)
 
+class VehicleLocationHistory(Base):
+    __tablename__ = 'vehicle_location_histories'
+    city = Column(String)
+    ride_id = Column(UUID)
+    timestamp = Column(DateTime, default=datetime.datetime.now)
+    lat = Column(Float)
+    long = Column(Float)
+    PrimaryKeyConstraint(city, ride_id, timestamp)
+    __table_args__ = (ForeignKeyConstraint([city, ride_id], ["rides.city", "rides.id"]),)
+
+    def __repr__(self):
+        return "<VehicleLocationHistory(city='%s', ride_id='%s', timestamp='%s', lat='%s', long='%s')>" % \
+               (self.city, self.ride_id, self.timestamp, self.lat, self.long)
 
 class Vehicle(Base):
     __tablename__ = 'vehicles'

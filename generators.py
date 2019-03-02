@@ -25,6 +25,11 @@ class MovRGenerator:
         return random.choice(['red', 'yellow', 'blue', 'green', 'black'])
 
     @staticmethod
+    def generate_random_latlong():
+        return {'lat': random.uniform(-180, 180), 'long': random.uniform(-90, 90)}
+
+
+    @staticmethod
     def gen_bike_brand():
         return random.choice(['Merida','Fuji'
         'Cervelo', 'Pinarello',

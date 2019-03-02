@@ -6,7 +6,7 @@ import argparse
 import sys, os, time, datetime, random, math, signal, threading, re
 import logging
 from faker import Faker
-from models import User, Vehicle, Ride
+from models import User, Vehicle, Ride, VehicleLocationHistory
 from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
@@ -43,7 +43,7 @@ DEFAULT_PARTITION_MAP = {
 }
 
 # Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
-def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo_sql = False):
+def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, cities, echo_sql = False):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
@@ -61,7 +61,8 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, cities, echo
             add_vehicles(engine, num_vehicles, city)
             logging.info("Generating ride data for %s...", city)
             add_rides(engine, num_rides, city)
-
+            logging.info("Generating location history data for %s...", city)
+            add_vehicle_location_histories(engine, num_histories, city)
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
 
@@ -85,6 +86,13 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 # simulate user loading screen
                 movr.get_vehicles(active_city,25)
             else:
+
+                # every write tick, simulate the various vehicles updating their locations if they are being used for rides
+                for ride in active_rides:
+                    latlong = MovRGenerator.generate_random_latlong()
+                    movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
+                                              long=latlong['long'])
+
                 #do write operations randomly
                 if random.random() < .1:
                     # simulate new signup
@@ -108,6 +116,8 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                         #simulate a ride ending
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
+
+
 
 
 
@@ -170,6 +180,8 @@ def setup_parser():
                              help='The number of random vehicles to add to the dataset')
     load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500,
                              help='The number of random rides to add to the dataset')
+    load_parser.add_argument('--num-histories', dest='num_histories', type=int, default=1000,
+                             help='The number of ride location histories to add to the dataset')
     load_parser.add_argument('--city-pair', dest='city_pair', action='append',
                              help='Pairs in the form <region>:<city_id> that will be used to enable geo-partitioning. If geo-partitioning is not enabled'
                                   'this will simply load random data for each of the cities specified. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
@@ -222,6 +234,28 @@ def add_rides(engine, num_rides, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_rides_helper(s, chunk, min(chunk + chunk_size, num_rides)))
 
+
+def add_vehicle_location_histories(engine, num_histories, city):
+    chunk_size = 5000
+
+    def add_vehicle_location_histories_helper(sess, chunk, n):
+        rides = sess.query(Ride).filter_by(city=city).all()
+
+        histories = []
+        for i in range(chunk, min(chunk + chunk_size, num_histories)):
+            latlong = MovRGenerator.generate_random_latlong()
+            histories.append(VehicleLocationHistory(
+                city=city,
+                ride_id=random.choice(rides).id,
+                lat=latlong["lat"],
+                long=latlong["long"]))
+
+        sess.bulk_save_objects(histories)
+
+    for chunk in range(0, num_histories, chunk_size):
+        run_transaction(sessionmaker(bind=engine),
+                        lambda s: add_vehicle_location_histories_helper(s, chunk, min(chunk + chunk_size, num_histories)))
+
 def add_users(engine, num_users, city):
     chunk_size = 1000
     datagen = Faker()
@@ -242,6 +276,8 @@ def add_users(engine, num_users, city):
 
 def add_vehicles(engine, num_vehicles, city):
     chunk_size = 1000
+    datagen = Faker()
+
     def add_vehicles_helper(sess, chunk, n):
         owners = sess.query(User).filter_by(city=city).all()
         vehicles = []
@@ -250,6 +286,7 @@ def add_vehicles(engine, num_vehicles, city):
             vehicles.append(Vehicle(id=MovRGenerator.generate_uuid(),
                                     type=vehicle_type,
                                     city=city,
+                                    current_location=datagen.address(),
                                     owner_id=(random.choice(owners)).id,
                                     status=MovRGenerator.get_vehicle_availability(),
                                     ext=MovRGenerator.generate_vehicle_metadata(vehicle_type)))
@@ -259,7 +296,7 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
-def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads,
+def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_threads,
                     skip_reload_tables, echo_sql, enable_geo_partitioning):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
@@ -270,8 +307,8 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads
             movr.add_geo_partitioning(partition_city_map)
 
         logging.info("loading cities %s", all_cities)
-        logging.info("loading movr data with ~%d users, ~%d vehicles, and ~%d rides",
-                     num_users, num_vehicles, num_rides)
+        logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, and ~%d histories",
+                     num_users, num_vehicles, num_rides, num_histories)
 
     usable_threads = min(num_threads, len(all_cities))  # don't create more than 1 thread per city
     if usable_threads < num_threads:
@@ -282,6 +319,7 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads
     num_users_per_city = int(math.ceil((float(num_users) / len(all_cities))))
     num_rides_per_city = int(math.ceil((float(num_rides) / len(all_cities))))
     num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(all_cities))))
+    num_histories_per_city = int(math.ceil((float(num_histories) / len(all_cities))))
 
     cities_to_load = all_cities
 
@@ -290,7 +328,7 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads
     for i in range(usable_threads):
         if len(cities_to_load) > 0:
             t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
-                                                              num_rides_per_city, cities_to_load[:cities_per_thread],
+                                                              num_rides_per_city, num_histories_per_city, cities_to_load[:cities_per_thread],
                                                               echo_sql))
             cities_to_load = cities_to_load[cities_per_thread:]
             t.start()
@@ -305,6 +343,7 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_threads
     logging.info("- %f users/second", float(num_users_per_city * len(all_cities)) / duration)
     logging.info("- %f rides/second", float(num_rides_per_city * len(all_cities)) / duration)
     logging.info("- %f vehicles/second", float(num_vehicles_per_city * len(all_cities)) / duration)
+    logging.info("- %f vehicle_location_histories/second", float(num_histories_per_city * len(all_cities)) / duration)
 
 # generate fake load for objects within the provided city list
 def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_threads):
@@ -324,6 +363,7 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
             if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
                 logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
                 sys.exit(1)
+
             active_rides.extend(movr.get_active_rides(city))
 
     logging.info("starting load")
@@ -382,7 +422,7 @@ if __name__ == '__main__':
         all_cities += partition_city_map[partition]
 
     if args.subparser_name=='load':
-        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_threads,
+        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_threads,
                         args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning)
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)

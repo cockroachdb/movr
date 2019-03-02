@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import Base, User, Vehicle, Ride
+from models import Base, User, Vehicle, Ride, VehicleLocationHistory
 
 from cockroachdb.sqlalchemy import run_transaction
 from generators import MovRGenerator
@@ -59,14 +59,13 @@ class MovR:
 
         run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, city, ride_id))
 
-    def update_vehicle_location(self, city, ride_id, new_address):
-        def update_vehicle_location_helper(session, city, ride_id, new_address):
-            ride = session.query(Ride).filter_by(city=city, id=ride_id).first()
-            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
-            v.current_location = new_address
+    def update_ride_location(self, city, ride_id, lat, long):
+        def update_ride_location_helper(session, city, ride_id, lat, long):
+            h = VehicleLocationHistory(city = city, ride_id = ride_id, lat = lat, long = long)
+            session.add(h)
 
         run_transaction(sessionmaker(bind=self.engine),
-                        lambda session: update_vehicle_location_helper(session, city, ride_id, new_address))
+                        lambda session: update_ride_location_helper(session, city, ride_id, lat, long))
 
     def add_user(self, city, name, address, credit_card_number):
         def add_user_helper(session, city, name, address, credit_card_number):
@@ -123,22 +122,37 @@ class MovR:
     # setup geo-partitioning if this is an enterprise cluster
     def add_geo_partitioning(self, partition_map):
         logging.debug("Partitioning database with : %s", partition_map)
-        partition_string = ""
-        first_region = True
-        for region in partition_map:
-            partition_string += "PARTITION " + region + " VALUES IN (" if first_region \
-                else ", PARTITION " + region + " VALUES IN ("
-            first_region = False
-            first_city = True
-            for city in partition_map[region]:
-                partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
-                first_city = False
-            partition_string += ")"
+        def create_partition_string(index_name=""):
+            partition_string = ""
+            first_region = True
+            for region in partition_map:
+                region_name = region+"_"+index_name if index_name else region
+                partition_string += "PARTITION " + region_name + " VALUES IN (" if first_region \
+                    else ", PARTITION " + region_name + " VALUES IN ("
+                first_region = False
+                first_city = True
+                for city in partition_map[region]:
+                    partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
+                    first_city = False
+                partition_string += ")"
+            return partition_string
 
-        for table in ["vehicles", "users", "rides"]:
+        partition_string = create_partition_string()
+        for table in ["vehicles", "users", "rides", "vehicle_location_histories"]:
             logging.debug("Partitioning table: %s", table)
             partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
             self.session.execute(partition_sql)
+
+
+        #@todo: figure out how to partition gin index ix_vehicle_ext
+        for index in [{"index_name":"rides_auto_index_fk_city_ref_users", "prefix_name": "city"},
+                      {"index_name":"rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city"},
+                      {"index_name":"vehicles_auto_index_fk_city_ref_users", "prefix_name": "city"}]:
+            logging.debug("Partitioning index: %s", index)
+            partition_string = create_partition_string(index_name=index["index_name"])
+            partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index["prefix_name"]+ ") (" + partition_string + ")"
+            self.session.execute(partition_sql)
+
 
         self.session.commit()
 
