@@ -80,10 +80,6 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 logging.debug("Terminating thread.")
                 return
 
-
-
-
-
             active_city = random.choice(cities)
 
             if random.random() < read_percentage:
@@ -91,7 +87,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 movr.get_vehicles(active_city,25)
             else:
 
-                # simulate the various vehicles in the selected cities updating their locations while they are on trips
+                # every write tick, simulate the various vehicles updating their locations if they are being used for rides
                 for ride in active_rides:
                     latlong = MovRGenerator.generate_random_latlong()
                     movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
