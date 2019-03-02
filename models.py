@@ -46,7 +46,6 @@ class Ride(Base):
     def __repr__(self):
         return "<Ride(city='%s', id='%s', rider_id='%s', vehicle_id='%s')>" % (self.city, self.id, self.rider_id, self.vehicle_id)
 
-#@todo: update this when CockroachDB has "POINT" support
 class VehicleLocationHistory(Base):
     __tablename__ = 'vehicle_location_histories'
     city = Column(String)
