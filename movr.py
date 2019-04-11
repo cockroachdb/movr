@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode
+from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
 
 from cockroachdb.sqlalchemy import run_transaction
 from generators import MovRGenerator
@@ -132,11 +132,14 @@ class MovR:
 
 
     def apply_promo_code(self, user_city, user_id, promo_code):
-        def get_promo_code_helper(session, code):
-            return session.query(PromoCode).filter_by(code=code).one_or_none()
-        # check to see if promo code exists
-        promo_code = run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: get_promo_code_helper(session, promo_code))
+        def apply_promo_code_helper(session, user_city, user_id, code):
+            ret = session.query(PromoCode).filter_by(code=code).one_or_none()
+            if ret:
+                upc = UserPromoCode(user_city = user_city, user_id = user_id, code = code)
+                session.add(upc)
+
+        run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: apply_promo_code_helper(session, user_city, user_id, promo_code))
 
 
 

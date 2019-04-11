@@ -99,8 +99,6 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
                 #do write operations randomly
                 if random.random() < .01:
-                    print ("adding promo code")
-
                     movr_objects["global"].get("promo_codes", []).append(movr.create_promo_code(
                         code="_".join(datagen.words(nb=3)) + "_" + str(time.time()),
                         description=datagen.paragraph(),
@@ -109,8 +107,8 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                         rules={"type": "percent_discount", "value": "10%"}))
 
                 elif random.random() < .1:
-                    print("applying promo code")
-
+                    movr.apply_promo_code(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
+                        random.choice(movr_objects["global"]["promo_codes"]))
                 elif random.random() < .1:
                     # simulate new signup
                     movr_objects["local"][active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
