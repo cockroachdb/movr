@@ -99,6 +99,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
                 #do write operations randomly
                 if random.random() < .01:
+                    # simulate a movr marketer creating a new promo code
                     movr_objects["global"].get("promo_codes", []).append(movr.create_promo_code(
                         code="_".join(datagen.words(nb=3)) + "_" + str(time.time()),
                         description=datagen.paragraph(),
@@ -107,6 +108,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                         rules={"type": "percent_discount", "value": "10%"}))
 
                 elif random.random() < .1:
+                    # simulate a user applying a promo code to her account
                     movr.apply_promo_code(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
                         random.choice(movr_objects["global"]["promo_codes"]))
                 elif random.random() < .1:
@@ -122,14 +124,12 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                                         status=MovRGenerator.get_vehicle_availability(),
                                         current_location = datagen.address()))
                 elif random.random() < .5:
-                    # simulate a user starting a ride
+                    # simulate a user starting a ride and evaluate any promocodes
                     ride = movr.start_ride(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
                                            random.choice(movr_objects["local"][active_city]["vehicles"])['id'])
 
-                    #@todo: apply a promo code to a ride
                     active_rides.append(ride)
                 else:
-                    #@todo: simulate a user adding a promo code
                     if len(active_rides):
                         #simulate a ride ending
                         ride = active_rides.pop()
