@@ -38,6 +38,11 @@ class MovR:
         def start_ride_helper(session, city, rider_id, vehicle_id):
             v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
 
+            # get valid promo codes
+            upcs = session.query(UserPromoCode).filter_by(user_city=city, user_id=rider_id).all()
+
+            # @todo: we don't actually use the promo codes
+
             r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,
                      start_address=v.current_location)
