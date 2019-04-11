@@ -41,7 +41,11 @@ class MovR:
             # get valid promo codes
             upcs = session.query(UserPromoCode).filter_by(user_city=city, user_id=rider_id).all()
 
-            # @todo: we don't actually use the promo codes
+            # simulate looking up each code to see which ones can be used
+            for upc in upcs:
+                #@todo: use SQLAlchemy relationships so we can get this via a join rather than two distinct queries
+                code = session.query(PromoCode).filter_by(code = upc.code).filter(PromoCode.expiration_time >= datetime.datetime.now()).one_or_none()
+                #@todo: actually do something with the codes when we confirm they are valid?
 
             r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,

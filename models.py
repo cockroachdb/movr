@@ -22,6 +22,8 @@ class User(Base):
     credit_card = Column(String)
     PrimaryKeyConstraint(city, id)
 
+    #@todo: use SqlAlchemy relationships for promo codes
+
     def __repr__(self):
         return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
 
@@ -87,7 +89,7 @@ class PromoCode(Base):
     PrimaryKeyConstraint(code)
     def __repr__(self):
         return "<PromoCode(code='%s', description='%s', creation_time='%s', expiration_time='%s', rules='%s')>" % \
-               (self.code, self.description, self.creation_time, self.expiraiton_time, self.rules)
+               (self.code, self.description, self.creation_time, self.expiration_time, self.rules)
 
 
 class UserPromoCode(Base):
