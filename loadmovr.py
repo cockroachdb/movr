@@ -66,8 +66,8 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
 
-        logging.info("Generating 1000 promo codes...")
-        add_promo_codes(engine, 1000)
+        logging.info("Generating 10 promo codes...")
+        add_promo_codes(engine, 10)
 
     return
 
@@ -96,25 +96,42 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
                                               long=latlong['long'])
 
+
                 #do write operations randomly
-                if random.random() < .1:
+                if random.random() < .01:
+                    print ("adding promo code")
+
+                    movr_objects["global"].get("promo_codes", []).append(movr.create_promo_code(
+                        code="_".join(datagen.words(nb=3)) + "_" + str(time.time()),
+                        description=datagen.paragraph(),
+                        expiration_time=datetime.datetime.now() + datetime.timedelta(
+                            days=random.randint(0, 30)),
+                        rules={"type": "percent_discount", "value": "10%"}))
+
+                elif random.random() < .1:
+                    print("applying promo code")
+
+                elif random.random() < .1:
                     # simulate new signup
-                    movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                    movr_objects["local"][active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
                 elif random.random() < .1:
                     # simulate a user adding a new vehicle to the population
-                    movr_objects[active_city]["vehicles"].append(
+                    movr_objects["local"][active_city]["vehicles"].append(
                         movr.add_vehicle(active_city,
-                                        owner_id = random.choice(movr_objects[active_city]["users"])['id'],
+                                        owner_id = random.choice(movr_objects["local"][active_city]["users"])['id'],
                                         type = MovRGenerator.generate_random_vehicle(),
                                         vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
                                         status=MovRGenerator.get_vehicle_availability(),
                                         current_location = datagen.address()))
                 elif random.random() < .5:
                     # simulate a user starting a ride
-                    ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                           random.choice(movr_objects[active_city]["vehicles"])['id'])
+                    ride = movr.start_ride(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
+                                           random.choice(movr_objects["local"][active_city]["vehicles"])['id'])
+
+                    #@todo: apply a promo code to a ride
                     active_rides.append(ride)
                 else:
+                    #@todo: simulate a user adding a promo code
                     if len(active_rides):
                         #simulate a ride ending
                         ride = active_rides.pop()
@@ -376,18 +393,19 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
     cities = all_cities if city_list is None else city_list
     logging.info("simulating movr load for cities %s", cities)
 
-    movr_objects = {}
+    movr_objects = { "local": {}, "global": {}}
 
     logging.info("warming up....")
     with MovR(conn_string, echo=echo_sql) as movr:
         active_rides = []
         for city in cities:
-            movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
-            if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
+            movr_objects["local"][city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
+            if len(list(movr_objects["local"][city]["vehicles"])) == 0 or len(list(movr_objects["local"][city]["users"])) == 0:
                 logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
                 sys.exit(1)
 
             active_rides.extend(movr.get_active_rides(city))
+        movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
     logging.info("starting load")
     RUNNING_THREADS = []

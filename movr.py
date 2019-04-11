@@ -113,6 +113,24 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: get_active_rides_helper(session, city, limit))
 
+    def get_promo_codes(self, limit=None):
+        def get_promo_codes_helper(session, limit=None):
+            pcs = session.query(PromoCode).limit(limit).all()
+            return list(map(lambda pc: pc.code, pcs))
+
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_promo_codes_helper(session, limit))
+
+
+    def create_promo_code(self, code, description, expiration_time, rules):
+        def add_promo_code_helper(session, code, description, expiration_time, rules):
+            pc = PromoCode(code = code, description = description, expiration_time = expiration_time, rules = rules)
+            session.add(pc)
+            return pc.code
+
+        return run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: add_promo_code_helper(session, code, description, expiration_time, rules))
+
+
     def apply_promo_code(self, user_city, user_id, promo_code):
         def get_promo_code_helper(session, code):
             return session.query(PromoCode).filter_by(code=code).one_or_none()
