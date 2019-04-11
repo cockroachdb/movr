@@ -6,7 +6,7 @@ import argparse
 import sys, os, time, datetime, random, math, signal, threading, re
 import logging
 from faker import Faker
-from models import User, Vehicle, Ride, VehicleLocationHistory
+from models import User, Vehicle, Ride, VehicleLocationHistory, PromoCode
 from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
@@ -65,6 +65,9 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
             add_vehicle_location_histories(engine, num_histories, city)
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
+
+        logging.info("Generating 1000 promo codes...")
+        add_promo_codes(engine, 1000)
 
     return
 
@@ -233,6 +236,26 @@ def add_rides(engine, num_rides, city):
     for chunk in range(0, num_rides, chunk_size):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_rides_helper(s, chunk, min(chunk + chunk_size, num_rides)))
+
+
+def add_promo_codes(engine, num_codes):
+    chunk_size = 800
+    datagen = Faker()
+
+    def add_codes_helper(sess, chunk, n):
+        codes = []
+        for i in range(chunk, min(chunk + chunk_size, num_codes)):
+            code = "_".join(datagen.words(nb=3)) + "_" + str(time.time())
+            codes.append(PromoCode(code = code,
+                                   description = datagen.paragraph(),
+                                   expiration_time = datetime.datetime.now() + datetime.timedelta(days=random.randint(0,30)),
+                                   rules = {"type": "percent_discount", "value": "10%"}))
+        sess.bulk_save_objects(codes)
+
+    for chunk in range(0, num_codes, chunk_size):
+        run_transaction(sessionmaker(bind=engine),
+                        lambda s: add_codes_helper(s, chunk, min(chunk + chunk_size, num_codes)))
+
 
 
 def add_vehicle_location_histories(engine, num_histories, city):
