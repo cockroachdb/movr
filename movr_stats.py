@@ -30,7 +30,7 @@ class MovRStats:
         def get_stats_row(command):
             if command in self.window_stats:
                 elapsed = time.time() - self.instantiation_time
-                return [command, round(elapsed, 0), len(self.window_stats[command]), self.cumulative_counts[command],
+                return [command, round(elapsed, 0),  self.cumulative_counts[command], len(self.window_stats[command]),
                         len(self.window_stats[command]) / elapsed,
                         round(float(get_percentile_measurement(command, 50)) * 1000, 2),
                         round(float(get_percentile_measurement(command, 95)) * 1000, 2),
@@ -39,7 +39,7 @@ class MovRStats:
             else:
                 return []
 
-        header = ["action", "time(total)", "ops(window)", "ops(total)", "ops/second", "p50(ms)", "p95(ms)", "p99(ms)", "max(ms)"]
+        header = ["action", "time(total)",  "ops(total)", "ops", "ops/second", "p50(ms)", "p95(ms)", "p99(ms)", "max(ms)"]
         rows = []
 
         for command in sorted(list(self.window_stats)):
