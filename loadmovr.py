@@ -92,7 +92,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 # simulate user loading screen
                 start = time.time()
                 movr.get_vehicles(active_city,25)
-                stats.add_latency_measurement("loading_screen",time.time() - start )
+                stats.add_latency_measurement("get vehicles",time.time() - start )
 
             else:
 
@@ -394,7 +394,7 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
         RUNNING_THREADS.append(t)
 
     while True: #keep main thread alive to catch exit signals
-        time.sleep(5)
+        time.sleep(10)
         stats.print_stats()
         stats.new_window()
 
