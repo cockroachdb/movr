@@ -1,6 +1,7 @@
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Index, String, DateTime, Float, \
+from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Index, String, DateTime, Integer, Float, \
     PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
 from sqlalchemy.types import DECIMAL
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -21,8 +22,7 @@ class User(Base):
     address = Column(String)
     credit_card = Column(String)
     PrimaryKeyConstraint(city, id)
-
-    #@todo: use SqlAlchemy relationships for promo codes
+    promo_codes = relationship("UserPromoCode")
 
     def __repr__(self):
         return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
@@ -98,6 +98,8 @@ class UserPromoCode(Base):
     user_id = Column(UUID)
     code = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.now)
+    usage_count = Column(Integer, default=0)
+    promo_code = relationship("PromoCode")
 
     PrimaryKeyConstraint(user_city, user_id, code)
 

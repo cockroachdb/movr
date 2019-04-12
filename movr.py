@@ -43,9 +43,10 @@ class MovR:
 
             # simulate looking up each code to see which ones can be used
             for upc in upcs:
-                #@todo: use SQLAlchemy relationships so we can get this via a join rather than two distinct queries
-                code = session.query(PromoCode).filter_by(code = upc.code).filter(PromoCode.expiration_time >= datetime.datetime.now()).one_or_none()
-                #@todo: actually do something with the codes when we confirm they are valid?
+                if upc.promo_code.expiration_time > datetime.datetime.now():
+                    upc.usage_count+=1;
+                    code = upc.promo_code
+                    #@todo: do something with the code
 
             r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,
@@ -142,10 +143,14 @@ class MovR:
 
     def apply_promo_code(self, user_city, user_id, promo_code):
         def apply_promo_code_helper(session, user_city, user_id, code):
-            ret = session.query(PromoCode).filter_by(code=code).one_or_none()
-            if ret:
-                upc = UserPromoCode(user_city = user_city, user_id = user_id, code = code)
-                session.add(upc)
+            pc = session.query(PromoCode).filter_by(code=code).one_or_none()
+            if pc:
+                # see if it has already been applied
+                upc = session.query(UserPromoCode).\
+                    filter_by(user_city = user_city, user_id = user_id, code = code).one_or_none()
+                if not upc:
+                    upc = UserPromoCode(user_city = user_city, user_id = user_id, code = code)
+                    session.add(upc)
 
         run_transaction(sessionmaker(bind=self.engine),
                                lambda session: apply_promo_code_helper(session, user_city, user_id, promo_code))
