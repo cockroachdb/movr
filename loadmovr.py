@@ -109,7 +109,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     # simulate new signup
                     start = time.time()
                     movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
-                    stats.add_latency_measurement("loading_screen", time.time() - start)
+                    stats.add_latency_measurement("new user", time.time() - start)
                 elif random.random() < .1:
                     # simulate a user adding a new vehicle to the population
                     start = time.time()
