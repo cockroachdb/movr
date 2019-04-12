@@ -43,7 +43,7 @@ DEFAULT_PARTITION_MAP = {
 }
 
 # Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
-def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, cities, echo_sql = False):
+def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, num_promo_codes_per_thread, cities, echo_sql = False):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
@@ -66,8 +66,8 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
 
-        logging.info("Generating 10 promo codes...")
-        add_promo_codes(engine, 10)
+        logging.info("Generating %s promo codes...", num_promo_codes_per_thread)
+        add_promo_codes(engine, num_promo_codes_per_thread)
 
     return
 
@@ -200,6 +200,8 @@ def setup_parser():
                              help='The number of random rides to add to the dataset')
     load_parser.add_argument('--num-histories', dest='num_histories', type=int, default=1000,
                              help='The number of ride location histories to add to the dataset')
+    load_parser.add_argument('--num-promo-codes', dest='num_promo_codes', type=int, default=1000,
+                             help='The number of promo codes to add to the dataset')
     load_parser.add_argument('--city-pair', dest='city_pair', action='append',
                              help='Pairs in the form <region>:<city_id> that will be used to enable geo-partitioning. If geo-partitioning is not enabled'
                                   'this will simply load random data for each of the cities specified. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
@@ -334,7 +336,7 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
-def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_threads,
+def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
                     skip_reload_tables, echo_sql, enable_geo_partitioning):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
@@ -345,8 +347,8 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
             movr.add_geo_partitioning(partition_city_map)
 
         logging.info("loading cities %s", all_cities)
-        logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, and ~%d histories",
-                     num_users, num_vehicles, num_rides, num_histories)
+        logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
+                     num_users, num_vehicles, num_rides, num_histories, num_promo_codes)
 
     usable_threads = min(num_threads, len(all_cities))  # don't create more than 1 thread per city
     if usable_threads < num_threads:
@@ -359,6 +361,8 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
     num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(all_cities))))
     num_histories_per_city = int(math.ceil((float(num_histories) / len(all_cities))))
 
+    num_promo_codes_per_thread = int(math.ceil((float(num_promo_codes) / usable_threads)))
+
     cities_to_load = all_cities
 
     RUNNING_THREADS = []
@@ -366,7 +370,8 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
     for i in range(usable_threads):
         if len(cities_to_load) > 0:
             t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
-                                                              num_rides_per_city, num_histories_per_city, cities_to_load[:cities_per_thread],
+                                                              num_rides_per_city, num_histories_per_city, num_promo_codes_per_thread,
+                                                              cities_to_load[:cities_per_thread],
                                                               echo_sql))
             cities_to_load = cities_to_load[cities_per_thread:]
             t.start()
@@ -378,10 +383,6 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
     duration = time.time() - start_time
 
     logging.info("populated %s cities in %f seconds", len(all_cities), duration)
-    logging.info("- %f users/second", float(num_users_per_city * len(all_cities)) / duration)
-    logging.info("- %f rides/second", float(num_rides_per_city * len(all_cities)) / duration)
-    logging.info("- %f vehicles/second", float(num_vehicles_per_city * len(all_cities)) / duration)
-    logging.info("- %f vehicle_location_histories/second", float(num_histories_per_city * len(all_cities)) / duration)
 
 # generate fake load for objects within the provided city list
 def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_threads):
@@ -461,7 +462,7 @@ if __name__ == '__main__':
         all_cities += partition_city_map[partition]
 
     if args.subparser_name=='load':
-        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_threads,
+        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
                         args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning)
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
