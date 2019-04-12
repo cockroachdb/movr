@@ -38,10 +38,10 @@ class MovR:
         def start_ride_helper(session, city, rider_id, vehicle_id):
             v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
 
-            # get valid promo codes
+            # get promo codes associated with this user's account
             upcs = session.query(UserPromoCode).filter_by(user_city=city, user_id=rider_id).all()
 
-            # simulate looking up each code to see which ones can be used
+            # determine which codes are valid
             for upc in upcs:
                 if upc.promo_code.expiration_time > datetime.datetime.now():
                     upc.usage_count+=1;
