@@ -223,6 +223,18 @@ class MovR:
                     queries_run.append(zone_sql)
                     session.execute(zone_sql)
 
+
+            # create an index in each region so we can use the zone-config aware CBO
+            for partition_name in partition_map:
+                if not partition_name in zone_map:
+                    logging.info("partition_name %s not found in zone map. Skipping index creation for promo codes", partition_name)
+                    continue
+
+                sql = "CREATE INDEX promo_codes_"+partition_name+"_idx on promo_codes (code) STORING (description, creation_time, expiration_time, rules)"
+                session.execute(sql)
+
+            # @todo: add apply zone configs
+
             return queries_run
 
         queries = run_transaction(sessionmaker(bind=self.engine),

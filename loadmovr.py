@@ -186,8 +186,8 @@ def extract_region_city_pairs_from_cli(pair_list):
 def get_cities(city_list):
     cities = []
     if city_list is None:
-        for partition in partition_city_map:
-            cities += partition_city_map[partition]
+        for partition in DEFAULT_PARTITION_MAP:
+            cities += DEFAULT_PARTITION_MAP[partition]
         return cities
     else:
         return city_list
