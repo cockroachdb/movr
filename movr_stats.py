@@ -56,7 +56,8 @@ class MovRStats:
         try:
             for command in sorted(list(self.window_stats)):
                 rows.append(get_stats_row(command))
+            print(tabulate(rows, header), "\n")
         finally:
             self.mutex.release()
 
-        print(tabulate(rows, header), "\n")
+
