@@ -233,6 +233,10 @@ class MovR:
                 sql = "CREATE INDEX promo_codes_"+partition_name+"_idx on promo_codes (code) STORING (description, creation_time, expiration_time, rules)"
                 session.execute(sql)
 
+                sql = "ALTER INDEX promo_codes@promo_codes_" + partition_name+ "_idx CONFIGURE ZONE USING constraints='[+region=" + zone_map[partition_name] + "]'";
+                session.execute(sql)
+
+
             # @todo: add apply zone configs
 
             return queries_run
