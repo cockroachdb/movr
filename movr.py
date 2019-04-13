@@ -186,7 +186,7 @@ class MovR:
 
         partition_string = create_partition_string()
         for table in ["vehicles", "users", "rides", "vehicle_location_histories", "user_promo_codes"]:
-            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
+            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ");"
             queries_to_run.append(partition_sql)
 
             for partition_name in partition_map:
@@ -207,7 +207,7 @@ class MovR:
                        "table": "vehicles"}]:
             partition_string = create_partition_string(index_name=index["index_name"])
             partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index[
-                "prefix_name"] + ") (" + partition_string + ")"
+                "prefix_name"] + ") (" + partition_string + ");"
             queries_to_run.append(partition_sql)
 
             for partition_name in partition_map:
@@ -228,11 +228,11 @@ class MovR:
                              partition_name)
                 continue
 
-            sql = "CREATE INDEX promo_codes_" + partition_name + "_idx on promo_codes (code) STORING (description, creation_time, expiration_time, rules)"
+            sql = "CREATE INDEX promo_codes_" + partition_name + "_idx on promo_codes (code) STORING (description, creation_time, expiration_time, rules);"
             queries_to_run.append(sql)
 
             sql = "ALTER INDEX promo_codes@promo_codes_" + partition_name + "_idx CONFIGURE ZONE USING constraints='[+region=" + \
-                  zone_map[partition_name] + "]'";
+                  zone_map[partition_name] + "]';";
             queries_to_run.append(sql)
 
         return queries_to_run
