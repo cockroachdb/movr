@@ -1,26 +1,37 @@
 import numpy
 from tabulate import tabulate
 import time
-
+from threading import Lock
 
 class MovRStats:
+
+
 
     def __init__(self):
         self.window_stats = {}
         self.window_start_time = time.time()
         self.cumulative_counts = {}
         self.instantiation_time = time.time()
+        self.mutex = Lock()
 
     # reset stats while keeping cumulative counts
     def new_window(self):
-        self.window_start_time = time.time()
-        self.window_stats = {}
+        self.mutex.acquire()
+        try:
+            self.window_start_time = time.time()
+            self.window_stats = {}
+        finally:
+            self.mutex.release()
 
     # add one latency measurement in seconds
     def add_latency_measurement(self, command, measurement):
-        self.window_stats.setdefault(command,[]).append(measurement)
-        self.cumulative_counts.setdefault(command,0)
-        self.cumulative_counts[command]+=1
+        self.mutex.acquire()
+        try:
+            self.window_stats.setdefault(command,[]).append(measurement)
+            self.cumulative_counts.setdefault(command,0)
+            self.cumulative_counts[command]+=1
+        finally:
+            self.mutex.release()
 
     # print the current stats this instance has collected
     def print_stats(self):
@@ -42,7 +53,11 @@ class MovRStats:
         header = ["action", "time(total)",  "ops(total)", "ops", "ops/second", "p50(ms)", "p95(ms)", "p99(ms)", "max(ms)"]
         rows = []
 
-        for command in sorted(list(self.window_stats)):
-            rows.append(get_stats_row(command))
+        self.mutex.acquire()
+        try:
+            for command in sorted(list(self.window_stats)):
+                rows.append(get_stats_row(command))
+        finally:
+            self.mutex.release()
 
         print(tabulate(rows, header), "\n")
