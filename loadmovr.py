@@ -11,6 +11,8 @@ from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from urllib.parse import parse_qs, urlsplit, urlunsplit, urlencode
+from movr_stats import MovRStats
+
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
@@ -31,6 +33,10 @@ def signal_handler(sig, frame):
 
     logging.info("shutting down gracefully.")
     sys.exit(0)
+
+
+
+
 
 
 
@@ -84,21 +90,29 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
             if random.random() < read_percentage:
                 # simulate user loading screen
+                start = time.time()
                 movr.get_vehicles(active_city,25)
+                stats.add_latency_measurement("get vehicles",time.time() - start )
+
             else:
 
                 # every write tick, simulate the various vehicles updating their locations if they are being used for rides
                 for ride in active_rides:
+                    start = time.time()
                     latlong = MovRGenerator.generate_random_latlong()
                     movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
                                               long=latlong['long'])
+                    stats.add_latency_measurement("update ride location", time.time() - start)
 
                 #do write operations randomly
                 if random.random() < .1:
                     # simulate new signup
+                    start = time.time()
                     movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                    stats.add_latency_measurement("new user", time.time() - start)
                 elif random.random() < .1:
                     # simulate a user adding a new vehicle to the population
+                    start = time.time()
                     movr_objects[active_city]["vehicles"].append(
                         movr.add_vehicle(active_city,
                                         owner_id = random.choice(movr_objects[active_city]["users"])['id'],
@@ -106,16 +120,21 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                                         vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
                                         status=MovRGenerator.get_vehicle_availability(),
                                         current_location = datagen.address()))
+                    stats.add_latency_measurement("add vehicle", time.time() - start)
                 elif random.random() < .5:
                     # simulate a user starting a ride
+                    start = time.time()
                     ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
                                            random.choice(movr_objects[active_city]["vehicles"])['id'])
                     active_rides.append(ride)
+                    stats.add_latency_measurement("start ride", time.time() - start)
                 else:
                     if len(active_rides):
                         #simulate a ride ending
+                        start = time.time()
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
+                        stats.add_latency_measurement("end ride", time.time() - start)
 
 
 
@@ -375,10 +394,15 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
         RUNNING_THREADS.append(t)
 
     while True: #keep main thread alive to catch exit signals
-        time.sleep(0.5)
+        time.sleep(10)
+        stats.print_stats()
+        stats.new_window()
+
 
 if __name__ == '__main__':
 
+    global stats
+    stats = MovRStats()
     # support ctrl + c for exiting multithreaded operation
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -426,6 +450,8 @@ if __name__ == '__main__':
                         args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning)
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
+
+
 
 
 
