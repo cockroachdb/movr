@@ -258,7 +258,7 @@ def setup_parser():
     ####################
     # PARTITION COMMANDS
     ####################
-    load_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise to use this feature license (https://cockroa.ch/2BoAlgB)")
+    load_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise license to use this feature (https://cockroa.ch/2BoAlgB)")
     load_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
                              help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
     load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
@@ -523,7 +523,6 @@ if __name__ == '__main__':
         run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
                         args.skip_reload_tables, args.echo_sql)
     elif args.subparser_name=="partition":
-        print("partitioning tables...")
         # population partitions
         partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
         partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
@@ -535,6 +534,7 @@ if __name__ == '__main__':
                 for query in queries:
                     print(query)
             else:
+                print("partitioning tables...")
                 movr.add_geo_partitioning(partition_city_map, partition_zone_map)
                 print("done.")
 

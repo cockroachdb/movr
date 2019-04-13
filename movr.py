@@ -198,8 +198,6 @@ class MovR:
                            zone_map[partition_name] + "]';"
                 queries_to_run.append(zone_sql)
 
-        # @todo: figure out how to partition gin index ix_vehicle_ext
-
         for index in [{"index_name": "rides_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "rides"},
                       {"index_name": "rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city",
                        "table": "rides"},
