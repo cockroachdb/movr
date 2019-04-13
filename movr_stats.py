@@ -8,11 +8,10 @@ class MovRStats:
 
 
     def __init__(self):
-        self.window_stats = {}
-        self.window_start_time = time.time()
         self.cumulative_counts = {}
         self.instantiation_time = time.time()
         self.mutex = Lock()
+        self.new_window()
 
     # reset stats while keeping cumulative counts
     def new_window(self):
