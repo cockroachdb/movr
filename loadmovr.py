@@ -264,6 +264,8 @@ def setup_parser():
     load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
                              help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
                                   'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
+    load_parser.add_argument('--print-queries', dest='print_queries', action='store_true',
+                             help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
 
     ###############
     # RUN COMMANDS
@@ -527,9 +529,14 @@ if __name__ == '__main__':
         partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
 
         with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
-            movr.add_geo_partitioning(partition_city_map, partition_zone_map)
-
-        print("done.")
+            if args.print_queries:
+                queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
+                print("queries to geo-partition this movr database")
+                for query in queries:
+                    print(query)
+            else:
+                movr.add_geo_partitioning(partition_city_map, partition_zone_map)
+                print("done.")
 
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
