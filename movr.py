@@ -161,43 +161,69 @@ class MovR:
     # UTILITIES AND HELPERS
     ############
 
+    def get_geo_partitioning_commands(self, partition_map, zone_map):
+        print("tbd")
 
     # setup geo-partitioning if this is an enterprise cluster
-    def add_geo_partitioning(self, partition_map):
-        logging.debug("Partitioning database with : %s", partition_map)
-        def create_partition_string(index_name=""):
-            partition_string = ""
-            first_region = True
-            for region in partition_map:
-                region_name = region+"_"+index_name if index_name else region
-                partition_string += "PARTITION " + region_name + " VALUES IN (" if first_region \
-                    else ", PARTITION " + region_name + " VALUES IN ("
-                first_region = False
-                first_city = True
-                for city in partition_map[region]:
-                    partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
-                    first_city = False
-                partition_string += ")"
-            return partition_string
+    def add_geo_partitioning(self, partition_map, zone_map):
+        logging.debug("Partitioning database with partitions : %s", partition_map)
+        logging.debug("Partitioning database with zones : %s", zone_map)
+        def add_geo_partitioning_helper(session, partition_map, zone_map):
+            def get_index_partition_name(region, index_name):
+                return region+"_"+index_name
 
-        partition_string = create_partition_string()
-        for table in ["vehicles", "users", "rides", "vehicle_location_histories"]:
-            logging.debug("Partitioning table: %s", table)
-            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
-            self.session.execute(partition_sql)
+            def create_partition_string(index_name=""):
+                partition_string = ""
+                first_region = True
+                for region in partition_map:
+                    region_name = get_index_partition_name(region,index_name) if index_name else region
+                    partition_string += "PARTITION " + region_name + " VALUES IN (" if first_region \
+                        else ", PARTITION " + region_name + " VALUES IN ("
+                    first_region = False
+                    first_city = True
+                    for city in partition_map[region]:
+                        partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
+                        first_city = False
+                    partition_string += ")"
+                return partition_string
+
+            queries_run = []
+
+            partition_string = create_partition_string()
+            for table in ["vehicles", "users", "rides", "vehicle_location_histories"]:
+                partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
+                queries_run.append(partition_sql)
+                session.execute(partition_sql)
+
+                for partition_name in partition_map:
+                    zone_sql = "ALTER PARTITION " + partition_name + " OF TABLE " + table + " CONFIGURE ZONE USING constraints='[+region="+zone_map[partition_name]+"]';"
+                    queries_run.append(zone_sql)
+                    session.execute(zone_sql)
 
 
-        #@todo: figure out how to partition gin index ix_vehicle_ext
-        for index in [{"index_name":"rides_auto_index_fk_city_ref_users", "prefix_name": "city"},
-                      {"index_name":"rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city"},
-                      {"index_name":"vehicles_auto_index_fk_city_ref_users", "prefix_name": "city"}]:
-            logging.debug("Partitioning index: %s", index)
-            partition_string = create_partition_string(index_name=index["index_name"])
-            partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index["prefix_name"]+ ") (" + partition_string + ")"
-            self.session.execute(partition_sql)
+            #@todo: figure out how to partition gin index ix_vehicle_ext
 
+            #@todo: what about users and location histories?
+            for index in [{"index_name":"rides_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "rides"},
+                          {"index_name":"rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city", "table": "rides"},
+                          {"index_name":"vehicles_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "vehicles"}]:
+                partition_string = create_partition_string(index_name=index["index_name"])
+                partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index["prefix_name"]+ ") (" + partition_string + ")"
+                queries_run.append(partition_sql)
+                session.execute(partition_sql)
 
-        self.session.commit()
+                for partition_name in partition_map:
+                    zone_sql = "ALTER PARTITION " + get_index_partition_name(partition_name,index["index_name"]) + " OF TABLE " + index["table"] + " CONFIGURE ZONE USING constraints='[+region=" + zone_map[partition_name] + "]';"
+                    queries_run.append(zone_sql)
+                    session.execute(zone_sql)
+
+            return queries_run
+
+        queries = run_transaction(sessionmaker(bind=self.engine),
+                        lambda session: add_geo_partitioning_helper(session, partition_map, zone_map))
+
+        print(queries)
+
 
 
 

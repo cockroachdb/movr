@@ -154,13 +154,27 @@ def extract_city_pairs_from_cli(pair_list):
             pair = [pair[0], ":".join(pair[1:])]  # if there are many semicolons convert this to only two items
 
 
-        if pair[0] in city_pairs:
-            city_pairs[pair[0]].append(pair[1])
-        else:
-            city_pairs[pair[0]] = [pair[1]]
+        city_pairs.setdefault(pair[0],[]).append(pair[1])
 
     return city_pairs
 
+def extract_zone_pairs_from_cli(pair_list):
+    if pair_list is None:
+        return {}
+
+    zone_pairs = {}
+
+    for zone_pair in pair_list:
+        pair = zone_pair.split(":")
+        if len(pair) < 1:
+            pair = ["default"].append(pair[0])
+        else:
+            pair = [pair[0], ":".join(pair[1:])]  # if there are many colons convert this to only two items
+
+        zone_pairs.setdefault(pair[0], "")
+        zone_pairs[pair[0]] = pair[1]
+
+    return zone_pairs
 
 def set_query_parameter(url, param_name, param_value):
     scheme, netloc, path, query_string, fragment = urlsplit(url)
@@ -205,10 +219,20 @@ def setup_parser():
     load_parser.add_argument('--city-pair', dest='city_pair', action='append',
                              help='Pairs in the form <region>:<city_id> that will be used to enable geo-partitioning. If geo-partitioning is not enabled'
                                   'this will simply load random data for each of the cities specified. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
+    load_parser.add_argument('--zone-pair', dest='zone_pair', action='append',
+                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the following zone. '
+                                  'If geo-partitioning is not enabled, this is a no op'
+                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
     load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
                              help='Set this if your cluster has an enterprise license (https://cockroa.ch/2BoAlgB) and you want to use geo-partitioning functionality (https://cockroa.ch/2wd96zF)')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
+
+    ####################
+    # PARTITION COMMANDS
+    ####################
+
+    #@todo: split out partitioning into a separate command
 
     ###############
     # RUN COMMANDS
@@ -337,14 +361,14 @@ def add_vehicles(engine, num_vehicles, city):
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
 def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
-                    skip_reload_tables, echo_sql, enable_geo_partitioning):
+                    skip_reload_tables, echo_sql, enable_geo_partitioning, partition_city_map, partition_zone_map):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
     with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
         if enable_geo_partitioning:
-            movr.add_geo_partitioning(partition_city_map)
+            movr.add_geo_partitioning(partition_city_map, partition_zone_map)
 
         logging.info("loading cities %s", all_cities)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
@@ -456,6 +480,7 @@ if __name__ == '__main__':
 
     # population partitions
     partition_city_map = extract_city_pairs_from_cli(args.city_pair if args.subparser_name=='load' else None)
+    partition_zone_map = extract_zone_pairs_from_cli(args.zone_pair if args.subparser_name=='load' else None)
 
     all_cities = []
     for partition in partition_city_map:
@@ -463,7 +488,7 @@ if __name__ == '__main__':
 
     if args.subparser_name=='load':
         run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
-                        args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning)
+                        args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning, partition_city_map, partition_zone_map)
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
 
