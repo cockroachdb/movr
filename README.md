@@ -17,6 +17,8 @@ MovR can automatically partition data and apply zone configs using the `partitio
 Use region-city pairs to map cities to regional partitions and use region-zone pairs to map regional partitions to zones
 `docker run -it --rm cockroachdb/movr --echo-sql --app-name "movr-partition" --url "postgres://root@[ipaddress]/movr?sslmode=disable" partition --region-city-pair us_east:"new york" --region-city-pair central:chicago --region-city-pair us_west:seattle  --region-zone-pair us_east:us-east1 --region-zone-pair central:us-central1 --region-zone-pair us_west:us-west1`
 
+If you want to partition by hand (perhaps in a demo), MovR can print the partition commands with the `--print-queries` command.
+
 ## Pre-built datasets
 
 ### MovR 1M
