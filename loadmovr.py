@@ -83,7 +83,7 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
 
 # Generates evenly distributed load among the provided cities
 
-#@todo: add mutex
+
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
 
     datagen = Faker()
