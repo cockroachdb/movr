@@ -94,16 +94,16 @@ class PromoCode(Base):
 
 class UserPromoCode(Base):
     __tablename__ = 'user_promo_codes'
-    user_city = Column(String)
+    city = Column(String)
     user_id = Column(UUID)
     code = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.now)
     usage_count = Column(Integer, default=0)
     promo_code = relationship("PromoCode")
 
-    PrimaryKeyConstraint(user_city, user_id, code)
+    PrimaryKeyConstraint(city, user_id, code)
 
-    __table_args__ = (ForeignKeyConstraint([user_city, user_id], ["users.city",
+    __table_args__ = (ForeignKeyConstraint([city, user_id], ["users.city",
                                                               "users.id"]),)
     __table_args__ = (ForeignKeyConstraint([code], ["promo_codes.code"]),)
 

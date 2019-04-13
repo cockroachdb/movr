@@ -39,7 +39,7 @@ class MovR:
             v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
 
             # get promo codes associated with this user's account
-            upcs = session.query(UserPromoCode).filter_by(user_city=city, user_id=rider_id).all()
+            upcs = session.query(UserPromoCode).filter_by(city=city, user_id=rider_id).all()
 
             # determine which codes are valid
             for upc in upcs:
@@ -147,9 +147,9 @@ class MovR:
             if pc:
                 # see if it has already been applied
                 upc = session.query(UserPromoCode).\
-                    filter_by(user_city = user_city, user_id = user_id, code = code).one_or_none()
+                    filter_by(city = user_city, user_id = user_id, code = code).one_or_none()
                 if not upc:
-                    upc = UserPromoCode(user_city = user_city, user_id = user_id, code = code)
+                    upc = UserPromoCode(city = user_city, user_id = user_id, code = code)
                     session.add(upc)
 
         run_transaction(sessionmaker(bind=self.engine),
@@ -190,7 +190,7 @@ class MovR:
             queries_run = []
 
             partition_string = create_partition_string()
-            for table in ["vehicles", "users", "rides", "vehicle_location_histories"]:
+            for table in ["vehicles", "users", "rides", "vehicle_location_histories", "user_promo_codes"]:
                 partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
                 queries_run.append(partition_sql)
                 session.execute(partition_sql)
@@ -203,7 +203,6 @@ class MovR:
 
             #@todo: figure out how to partition gin index ix_vehicle_ext
 
-            #@todo: what about users and location histories?
             for index in [{"index_name":"rides_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "rides"},
                           {"index_name":"rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city", "table": "rides"},
                           {"index_name":"vehicles_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "vehicles"}]:
@@ -222,7 +221,7 @@ class MovR:
         queries = run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, partition_map, zone_map))
 
-        print(queries)
+
 
 
 
