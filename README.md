@@ -12,6 +12,10 @@ Generating fake data: `docker run -it --rm cockroachdb/movr --url "postgres://ro
 
 Generating load for cities: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --num-threads 10 run --city "new york" --city "boston"`
 
+## Partitioning MovR
+MovR can automatically partition data and apply zone configs using the `partition` command.
+Use region-city pairs to map cities to regional partitions and use region-zone pairs to map regional partitions to zones
+`docker run -it --rm cockroachdb/movr --echo-sql --app-name "movr-partition" --url "postgres://root@[ipaddress]/movr?sslmode=disable" partition --region-city-pair us_east:"new york" --region-city-pair central:chicago --region-city-pair us_west:seattle  --region-zone-pair us_east:us-east1 --region-zone-pair central:us-central1 --region-zone-pair us_west:us-west1`
 
 ## Pre-built datasets
 
