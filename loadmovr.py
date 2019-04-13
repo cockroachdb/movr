@@ -11,9 +11,21 @@ from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from urllib.parse import parse_qs, urlsplit, urlunsplit, urlencode
+from movr_stats import MovRStats
+
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
+
+ACTION_ADD_VEHICLE = "add vehicle"
+ACTION_GET_VEHICLES = "get vehicles"
+ACTION_UPDATE_RIDE_LOC = "update ride location"
+ACTION_NEW_CODE = "new promo code"
+ACTION_APPLY_CODE = "apply promo code"
+ACTION_NEW_USER = "new user"
+ACTION_ADD_VEHICLE = "add vehicle"
+ACTION_START_RIDE = "start ride"
+ACTION_END_RIDE = "end ride"
 
 def signal_handler(sig, frame):
     global TERMINATE_GRACEFULLY
@@ -31,8 +43,6 @@ def signal_handler(sig, frame):
 
     logging.info("shutting down gracefully.")
     sys.exit(0)
-
-
 
 
 DEFAULT_PARTITION_MAP = {
@@ -72,6 +82,8 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
     return
 
 # Generates evenly distributed load among the provided cities
+
+#@todo: add mutex
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
 
     datagen = Faker()
@@ -87,35 +99,47 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
             if random.random() < read_percentage:
                 # simulate user loading screen
+                start = time.time()
                 movr.get_vehicles(active_city,25)
+                stats.add_latency_measurement("get vehicles",time.time() - start )
+
             else:
 
                 # every write tick, simulate the various vehicles updating their locations if they are being used for rides
                 for ride in active_rides:
+                    start = time.time()
                     latlong = MovRGenerator.generate_random_latlong()
                     movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
                                               long=latlong['long'])
+                    stats.add_latency_measurement(ACTION_UPDATE_RIDE_LOC, time.time() - start)
 
 
                 #do write operations randomly
                 if random.random() < .01:
                     # simulate a movr marketer creating a new promo code
+                    start = time.time()
                     movr_objects["global"].get("promo_codes", []).append(movr.create_promo_code(
                         code="_".join(datagen.words(nb=3)) + "_" + str(time.time()),
                         description=datagen.paragraph(),
                         expiration_time=datetime.datetime.now() + datetime.timedelta(
                             days=random.randint(0, 30)),
                         rules={"type": "percent_discount", "value": "10%"}))
+                    stats.add_latency_measurement(ACTION_NEW_CODE, time.time() - start)
 
                 elif random.random() < .1:
                     # simulate a user applying a promo code to her account
+                    start = time.time()
                     movr.apply_promo_code(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
                         random.choice(movr_objects["global"]["promo_codes"]))
+                    stats.add_latency_measurement(ACTION_APPLY_CODE, time.time() - start)
                 elif random.random() < .1:
                     # simulate new signup
+                    start = time.time()
                     movr_objects["local"][active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                    stats.add_latency_measurement(ACTION_NEW_USER, time.time() - start)
                 elif random.random() < .1:
                     # simulate a user adding a new vehicle to the population
+                    start = time.time()
                     movr_objects["local"][active_city]["vehicles"].append(
                         movr.add_vehicle(active_city,
                                         owner_id = random.choice(movr_objects["local"][active_city]["users"])['id'],
@@ -123,20 +147,21 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                                         vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
                                         status=MovRGenerator.get_vehicle_availability(),
                                         current_location = datagen.address()))
+                    stats.add_latency_measurement(ACTION_ADD_VEHICLE, time.time() - start)
                 elif random.random() < .5:
-                    # simulate a user starting a ride and evaluate any promocodes
+                    # simulate a user starting a ride
+                    start = time.time()
                     ride = movr.start_ride(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
                                            random.choice(movr_objects["local"][active_city]["vehicles"])['id'])
-
                     active_rides.append(ride)
+                    stats.add_latency_measurement(ACTION_START_RIDE, time.time() - start)
                 else:
                     if len(active_rides):
                         #simulate a ride ending
+                        start = time.time()
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
-
-
-
+                        stats.add_latency_measurement(ACTION_END_RIDE, time.time() - start)
 
 
 # creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
@@ -434,7 +459,6 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
             active_rides.extend(movr.get_active_rides(city))
         movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
-    logging.info("starting load")
     RUNNING_THREADS = []
     for i in range(num_threads):
         t = threading.Thread(target=simulate_movr_load, args=(conn_string, cities, movr_objects,
@@ -443,10 +467,19 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
         RUNNING_THREADS.append(t)
 
     while True: #keep main thread alive to catch exit signals
-        time.sleep(0.5)
+        time.sleep(10)
+
+        stats.print_stats(action_list=[ACTION_ADD_VEHICLE, ACTION_GET_VEHICLES, ACTION_UPDATE_RIDE_LOC,
+                           ACTION_NEW_CODE, ACTION_APPLY_CODE, ACTION_NEW_USER,
+                           ACTION_ADD_VEHICLE, ACTION_START_RIDE, ACTION_END_RIDE])
+
+        stats.new_window()
+
 
 if __name__ == '__main__':
 
+    global stats
+    stats = MovRStats()
     # support ctrl + c for exiting multithreaded operation
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -500,6 +533,8 @@ if __name__ == '__main__':
 
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
+
+
 
 
 

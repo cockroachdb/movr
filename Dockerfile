@@ -5,6 +5,7 @@ WORKDIR /usr/src/app
 COPY loadmovr.py ./
 COPY models.py ./
 COPY movr.py ./
+COPY movr_stats.py ./
 COPY generators.py ./
 COPY requirements.txt ./
 
