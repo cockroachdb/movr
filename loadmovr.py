@@ -140,7 +140,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
 
 # creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
-def extract_city_pairs_from_cli(pair_list):
+def extract_region_city_pairs_from_cli(pair_list):
     if pair_list is None:
         return DEFAULT_PARTITION_MAP
 
@@ -157,6 +157,15 @@ def extract_city_pairs_from_cli(pair_list):
         city_pairs.setdefault(pair[0],[]).append(pair[1])
 
     return city_pairs
+
+def get_cities(city_list):
+    cities = []
+    if city_list is None:
+        for partition in partition_city_map:
+            cities += partition_city_map[partition]
+        return cities
+    else:
+        return city_list
 
 def extract_zone_pairs_from_cli(pair_list):
     if pair_list is None:
@@ -216,23 +225,20 @@ def setup_parser():
                              help='The number of ride location histories to add to the dataset')
     load_parser.add_argument('--num-promo-codes', dest='num_promo_codes', type=int, default=1000,
                              help='The number of promo codes to add to the dataset')
-    load_parser.add_argument('--city-pair', dest='city_pair', action='append',
-                             help='Pairs in the form <region>:<city_id> that will be used to enable geo-partitioning. If geo-partitioning is not enabled'
-                                  'this will simply load random data for each of the cities specified. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
-    load_parser.add_argument('--zone-pair', dest='zone_pair', action='append',
-                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the following zone. '
-                                  'If geo-partitioning is not enabled, this is a no op'
-                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
-    load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
-                             help='Set this if your cluster has an enterprise license (https://cockroa.ch/2BoAlgB) and you want to use geo-partitioning functionality (https://cockroa.ch/2wd96zF)')
+    load_parser.add_argument('--city', dest='city', action='append',
+                             help='this will  load random data for each of the cities specified. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
 
     ####################
     # PARTITION COMMANDS
     ####################
-
-    #@todo: split out partitioning into a separate command
+    load_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise to use this feature license (https://cockroa.ch/2BoAlgB)")
+    load_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
+                             help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
+    load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
+                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
+                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
 
     ###############
     # RUN COMMANDS
@@ -361,14 +367,12 @@ def add_vehicles(engine, num_vehicles, city):
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
 def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
-                    skip_reload_tables, echo_sql, enable_geo_partitioning, partition_city_map, partition_zone_map):
+                    skip_reload_tables, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
     with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
-        if enable_geo_partitioning:
-            movr.add_geo_partitioning(partition_city_map, partition_zone_map)
 
         logging.info("loading cities %s", all_cities)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
@@ -478,17 +482,22 @@ if __name__ == '__main__':
     conn_string = conn_string.replace("postgresql://", "cockroachdb://")
     conn_string = set_query_parameter(conn_string, "application_name", args.app_name)
 
-    # population partitions
-    partition_city_map = extract_city_pairs_from_cli(args.city_pair if args.subparser_name=='load' else None)
-    partition_zone_map = extract_zone_pairs_from_cli(args.zone_pair if args.subparser_name=='load' else None)
-
-    all_cities = []
-    for partition in partition_city_map:
-        all_cities += partition_city_map[partition]
 
     if args.subparser_name=='load':
+        all_cities = get_cities(args.city)
         run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
-                        args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning, partition_city_map, partition_zone_map)
+                        args.skip_reload_tables, args.echo_sql)
+    elif args.subparser_name=="partition":
+        print("partitioning tables...")
+        # population partitions
+        partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
+        partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
+
+        with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
+            movr.add_geo_partitioning(partition_city_map, partition_zone_map)
+
+        print("done.")
+
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
 

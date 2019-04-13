@@ -196,6 +196,10 @@ class MovR:
                 session.execute(partition_sql)
 
                 for partition_name in partition_map:
+                    if not partition_name in zone_map:
+                        logging.info("partition_name %s not found in zone map. Skipping", partition_name)
+                        continue
+
                     zone_sql = "ALTER PARTITION " + partition_name + " OF TABLE " + table + " CONFIGURE ZONE USING constraints='[+region="+zone_map[partition_name]+"]';"
                     queries_run.append(zone_sql)
                     session.execute(zone_sql)
@@ -212,6 +216,9 @@ class MovR:
                 session.execute(partition_sql)
 
                 for partition_name in partition_map:
+                    if not partition_name in zone_map:
+                        logging.info("partition_name %s not found in zone map. Skipping", partition_name)
+                        continue
                     zone_sql = "ALTER PARTITION " + get_index_partition_name(partition_name,index["index_name"]) + " OF TABLE " + index["table"] + " CONFIGURE ZONE USING constraints='[+region=" + zone_map[partition_name] + "]';"
                     queries_run.append(zone_sql)
                     session.execute(zone_sql)
