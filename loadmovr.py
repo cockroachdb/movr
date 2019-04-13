@@ -6,7 +6,7 @@ import argparse
 import sys, os, time, datetime, random, math, signal, threading, re
 import logging
 from faker import Faker
-from models import User, Vehicle, Ride, VehicleLocationHistory
+from models import User, Vehicle, Ride, VehicleLocationHistory, PromoCode
 from cockroachdb.sqlalchemy import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
@@ -16,6 +16,16 @@ from movr_stats import MovRStats
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
+
+ACTION_ADD_VEHICLE = "add vehicle"
+ACTION_GET_VEHICLES = "get vehicles"
+ACTION_UPDATE_RIDE_LOC = "update ride location"
+ACTION_NEW_CODE = "new promo code"
+ACTION_APPLY_CODE = "apply promo code"
+ACTION_NEW_USER = "new user"
+ACTION_ADD_VEHICLE = "add vehicle"
+ACTION_START_RIDE = "start ride"
+ACTION_END_RIDE = "end ride"
 
 def signal_handler(sig, frame):
     global TERMINATE_GRACEFULLY
@@ -35,12 +45,6 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-
-
-
-
-
-
 DEFAULT_PARTITION_MAP = {
     "us_east": ["new york", "boston", "washington dc"],
     "us_west": ["san francisco", "seattle", "los angeles"],
@@ -49,7 +53,7 @@ DEFAULT_PARTITION_MAP = {
 }
 
 # Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
-def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, cities, echo_sql = False):
+def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, num_promo_codes_per_thread, cities, echo_sql = False):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
@@ -72,9 +76,14 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
             logging.info("populated %s in %f seconds",
                   city, time.time() - start_time)
 
+        logging.info("Generating %s promo codes...", num_promo_codes_per_thread)
+        add_promo_codes(engine, num_promo_codes_per_thread)
+
     return
 
 # Generates evenly distributed load among the provided cities
+
+
 def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, echo_sql = False):
 
     datagen = Faker()
@@ -102,46 +111,61 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     latlong = MovRGenerator.generate_random_latlong()
                     movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
                                               long=latlong['long'])
-                    stats.add_latency_measurement("update ride location", time.time() - start)
+                    stats.add_latency_measurement(ACTION_UPDATE_RIDE_LOC, time.time() - start)
+
 
                 #do write operations randomly
-                if random.random() < .1:
+                if random.random() < .01:
+                    # simulate a movr marketer creating a new promo code
+                    start = time.time()
+                    movr_objects["global"].get("promo_codes", []).append(movr.create_promo_code(
+                        code="_".join(datagen.words(nb=3)) + "_" + str(time.time()),
+                        description=datagen.paragraph(),
+                        expiration_time=datetime.datetime.now() + datetime.timedelta(
+                            days=random.randint(0, 30)),
+                        rules={"type": "percent_discount", "value": "10%"}))
+                    stats.add_latency_measurement(ACTION_NEW_CODE, time.time() - start)
+
+                elif random.random() < .1:
+                    # simulate a user applying a promo code to her account
+                    start = time.time()
+                    movr.apply_promo_code(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
+                        random.choice(movr_objects["global"]["promo_codes"]))
+                    stats.add_latency_measurement(ACTION_APPLY_CODE, time.time() - start)
+                elif random.random() < .1:
                     # simulate new signup
                     start = time.time()
-                    movr_objects[active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
-                    stats.add_latency_measurement("new user", time.time() - start)
+                    movr_objects["local"][active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                    stats.add_latency_measurement(ACTION_NEW_USER, time.time() - start)
                 elif random.random() < .1:
                     # simulate a user adding a new vehicle to the population
                     start = time.time()
-                    movr_objects[active_city]["vehicles"].append(
+                    movr_objects["local"][active_city]["vehicles"].append(
                         movr.add_vehicle(active_city,
-                                        owner_id = random.choice(movr_objects[active_city]["users"])['id'],
+                                        owner_id = random.choice(movr_objects["local"][active_city]["users"])['id'],
                                         type = MovRGenerator.generate_random_vehicle(),
                                         vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
                                         status=MovRGenerator.get_vehicle_availability(),
                                         current_location = datagen.address()))
-                    stats.add_latency_measurement("add vehicle", time.time() - start)
+                    stats.add_latency_measurement(ACTION_ADD_VEHICLE, time.time() - start)
                 elif random.random() < .5:
                     # simulate a user starting a ride
                     start = time.time()
-                    ride = movr.start_ride(active_city, random.choice(movr_objects[active_city]["users"])['id'],
-                                           random.choice(movr_objects[active_city]["vehicles"])['id'])
+                    ride = movr.start_ride(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
+                                           random.choice(movr_objects["local"][active_city]["vehicles"])['id'])
                     active_rides.append(ride)
-                    stats.add_latency_measurement("start ride", time.time() - start)
+                    stats.add_latency_measurement(ACTION_START_RIDE, time.time() - start)
                 else:
                     if len(active_rides):
                         #simulate a ride ending
                         start = time.time()
                         ride = active_rides.pop()
                         movr.end_ride(ride['city'], ride['id'])
-                        stats.add_latency_measurement("end ride", time.time() - start)
-
-
-
+                        stats.add_latency_measurement(ACTION_END_RIDE, time.time() - start)
 
 
 # creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
-def extract_city_pairs_from_cli(pair_list):
+def extract_region_city_pairs_from_cli(pair_list):
     if pair_list is None:
         return DEFAULT_PARTITION_MAP
 
@@ -155,13 +179,36 @@ def extract_city_pairs_from_cli(pair_list):
             pair = [pair[0], ":".join(pair[1:])]  # if there are many semicolons convert this to only two items
 
 
-        if pair[0] in city_pairs:
-            city_pairs[pair[0]].append(pair[1])
-        else:
-            city_pairs[pair[0]] = [pair[1]]
+        city_pairs.setdefault(pair[0],[]).append(pair[1])
 
     return city_pairs
 
+def get_cities(city_list):
+    cities = []
+    if city_list is None:
+        for partition in DEFAULT_PARTITION_MAP:
+            cities += DEFAULT_PARTITION_MAP[partition]
+        return cities
+    else:
+        return city_list
+
+def extract_zone_pairs_from_cli(pair_list):
+    if pair_list is None:
+        return {}
+
+    zone_pairs = {}
+
+    for zone_pair in pair_list:
+        pair = zone_pair.split(":")
+        if len(pair) < 1:
+            pair = ["default"].append(pair[0])
+        else:
+            pair = [pair[0], ":".join(pair[1:])]  # if there are many colons convert this to only two items
+
+        zone_pairs.setdefault(pair[0], "")
+        zone_pairs[pair[0]] = pair[1]
+
+    return zone_pairs
 
 def set_query_parameter(url, param_name, param_value):
     scheme, netloc, path, query_string, fragment = urlsplit(url)
@@ -201,13 +248,24 @@ def setup_parser():
                              help='The number of random rides to add to the dataset')
     load_parser.add_argument('--num-histories', dest='num_histories', type=int, default=1000,
                              help='The number of ride location histories to add to the dataset')
-    load_parser.add_argument('--city-pair', dest='city_pair', action='append',
-                             help='Pairs in the form <region>:<city_id> that will be used to enable geo-partitioning. If geo-partitioning is not enabled'
-                                  'this will simply load random data for each of the cities specified. Example: us_west:seattle. Use this flag multiple times to add multiple cities.')
-    load_parser.add_argument('--enable-geo-partitioning', dest='enable_geo_partitioning', action='store_true',
-                             help='Set this if your cluster has an enterprise license (https://cockroa.ch/2BoAlgB) and you want to use geo-partitioning functionality (https://cockroa.ch/2wd96zF)')
+    load_parser.add_argument('--num-promo-codes', dest='num_promo_codes', type=int, default=1000,
+                             help='The number of promo codes to add to the dataset')
+    load_parser.add_argument('--city', dest='city', action='append',
+                             help='this will  load random data for each of the cities specified. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
+
+    ####################
+    # PARTITION COMMANDS
+    ####################
+    load_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise to use this feature license (https://cockroa.ch/2BoAlgB)")
+    load_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
+                             help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
+    load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
+                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
+                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
+    load_parser.add_argument('--print-queries', dest='print_queries', action='store_true',
+                             help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
 
     ###############
     # RUN COMMANDS
@@ -252,6 +310,26 @@ def add_rides(engine, num_rides, city):
     for chunk in range(0, num_rides, chunk_size):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_rides_helper(s, chunk, min(chunk + chunk_size, num_rides)))
+
+
+def add_promo_codes(engine, num_codes):
+    chunk_size = 800
+    datagen = Faker()
+
+    def add_codes_helper(sess, chunk, n):
+        codes = []
+        for i in range(chunk, min(chunk + chunk_size, num_codes)):
+            code = "_".join(datagen.words(nb=3)) + "_" + str(time.time())
+            codes.append(PromoCode(code = code,
+                                   description = datagen.paragraph(),
+                                   expiration_time = datetime.datetime.now() + datetime.timedelta(days=random.randint(0,30)),
+                                   rules = {"type": "percent_discount", "value": "10%"}))
+        sess.bulk_save_objects(codes)
+
+    for chunk in range(0, num_codes, chunk_size):
+        run_transaction(sessionmaker(bind=engine),
+                        lambda s: add_codes_helper(s, chunk, min(chunk + chunk_size, num_codes)))
+
 
 
 def add_vehicle_location_histories(engine, num_histories, city):
@@ -315,19 +393,17 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
-def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_threads,
-                    skip_reload_tables, echo_sql, enable_geo_partitioning):
+def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
+                    skip_reload_tables, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
     with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
-        if enable_geo_partitioning:
-            movr.add_geo_partitioning(partition_city_map)
 
         logging.info("loading cities %s", all_cities)
-        logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, and ~%d histories",
-                     num_users, num_vehicles, num_rides, num_histories)
+        logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
+                     num_users, num_vehicles, num_rides, num_histories, num_promo_codes)
 
     usable_threads = min(num_threads, len(all_cities))  # don't create more than 1 thread per city
     if usable_threads < num_threads:
@@ -340,6 +416,8 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
     num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(all_cities))))
     num_histories_per_city = int(math.ceil((float(num_histories) / len(all_cities))))
 
+    num_promo_codes_per_thread = int(math.ceil((float(num_promo_codes) / usable_threads)))
+
     cities_to_load = all_cities
 
     RUNNING_THREADS = []
@@ -347,7 +425,8 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
     for i in range(usable_threads):
         if len(cities_to_load) > 0:
             t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
-                                                              num_rides_per_city, num_histories_per_city, cities_to_load[:cities_per_thread],
+                                                              num_rides_per_city, num_histories_per_city, num_promo_codes_per_thread,
+                                                              cities_to_load[:cities_per_thread],
                                                               echo_sql))
             cities_to_load = cities_to_load[cities_per_thread:]
             t.start()
@@ -359,10 +438,6 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
     duration = time.time() - start_time
 
     logging.info("populated %s cities in %f seconds", len(all_cities), duration)
-    logging.info("- %f users/second", float(num_users_per_city * len(all_cities)) / duration)
-    logging.info("- %f rides/second", float(num_rides_per_city * len(all_cities)) / duration)
-    logging.info("- %f vehicles/second", float(num_vehicles_per_city * len(all_cities)) / duration)
-    logging.info("- %f vehicle_location_histories/second", float(num_histories_per_city * len(all_cities)) / duration)
 
 # generate fake load for objects within the provided city list
 def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_threads):
@@ -372,20 +447,20 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
     cities = all_cities if city_list is None else city_list
     logging.info("simulating movr load for cities %s", cities)
 
-    movr_objects = {}
+    movr_objects = { "local": {}, "global": {}}
 
     logging.info("warming up....")
     with MovR(conn_string, echo=echo_sql) as movr:
         active_rides = []
         for city in cities:
-            movr_objects[city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
-            if len(list(movr_objects[city]["vehicles"])) == 0 or len(list(movr_objects[city]["users"])) == 0:
+            movr_objects["local"][city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
+            if len(list(movr_objects["local"][city]["vehicles"])) == 0 or len(list(movr_objects["local"][city]["users"])) == 0:
                 logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
                 sys.exit(1)
 
             active_rides.extend(movr.get_active_rides(city))
+        movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
-    logging.info("starting load")
     RUNNING_THREADS = []
     for i in range(num_threads):
         t = threading.Thread(target=simulate_movr_load, args=(conn_string, cities, movr_objects,
@@ -395,7 +470,11 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
 
     while True: #keep main thread alive to catch exit signals
         time.sleep(10)
-        stats.print_stats()
+
+        stats.print_stats(action_list=[ACTION_ADD_VEHICLE, ACTION_GET_VEHICLES, ACTION_UPDATE_RIDE_LOC,
+                           ACTION_NEW_CODE, ACTION_APPLY_CODE, ACTION_NEW_USER,
+                           ACTION_ADD_VEHICLE, ACTION_START_RIDE, ACTION_END_RIDE])
+
         stats.new_window()
 
 
@@ -438,16 +517,27 @@ if __name__ == '__main__':
     conn_string = conn_string.replace("postgresql://", "cockroachdb://")
     conn_string = set_query_parameter(conn_string, "application_name", args.app_name)
 
-    # population partitions
-    partition_city_map = extract_city_pairs_from_cli(args.city_pair if args.subparser_name=='load' else None)
-
-    all_cities = []
-    for partition in partition_city_map:
-        all_cities += partition_city_map[partition]
 
     if args.subparser_name=='load':
-        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_threads,
-                        args.skip_reload_tables, args.echo_sql, args.enable_geo_partitioning)
+        all_cities = get_cities(args.city)
+        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
+                        args.skip_reload_tables, args.echo_sql)
+    elif args.subparser_name=="partition":
+        print("partitioning tables...")
+        # population partitions
+        partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
+        partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
+
+        with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
+            if args.print_queries:
+                queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
+                print("queries to geo-partition this movr database")
+                for query in queries:
+                    print(query)
+            else:
+                movr.add_geo_partitioning(partition_city_map, partition_zone_map)
+                print("done.")
+
     else:
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
 

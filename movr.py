@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import Base, User, Vehicle, Ride, VehicleLocationHistory
+from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
 
 from cockroachdb.sqlalchemy import run_transaction
 from generators import MovRGenerator
@@ -37,6 +37,16 @@ class MovR:
 
         def start_ride_helper(session, city, rider_id, vehicle_id):
             v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
+
+            # get promo codes associated with this user's account
+            upcs = session.query(UserPromoCode).filter_by(city=city, user_id=rider_id).all()
+
+            # determine which codes are valid
+            for upc in upcs:
+                if upc.promo_code.expiration_time > datetime.datetime.now():
+                    upc.usage_count+=1;
+                    code = upc.promo_code
+                    #@todo: do something with the code
 
             r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,
@@ -113,20 +123,55 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: get_active_rides_helper(session, city, limit))
 
+    def get_promo_codes(self, limit=None):
+        def get_promo_codes_helper(session, limit=None):
+            pcs = session.query(PromoCode).limit(limit).all()
+            return list(map(lambda pc: pc.code, pcs))
+
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_promo_codes_helper(session, limit))
+
+
+    def create_promo_code(self, code, description, expiration_time, rules):
+        def add_promo_code_helper(session, code, description, expiration_time, rules):
+            pc = PromoCode(code = code, description = description, expiration_time = expiration_time, rules = rules)
+            session.add(pc)
+            return pc.code
+
+        return run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: add_promo_code_helper(session, code, description, expiration_time, rules))
+
+
+    def apply_promo_code(self, user_city, user_id, promo_code):
+        def apply_promo_code_helper(session, user_city, user_id, code):
+            pc = session.query(PromoCode).filter_by(code=code).one_or_none()
+            if pc:
+                # see if it has already been applied
+                upc = session.query(UserPromoCode).\
+                    filter_by(city = user_city, user_id = user_id, code = code).one_or_none()
+                if not upc:
+                    upc = UserPromoCode(city = user_city, user_id = user_id, code = code)
+                    session.add(upc)
+
+        run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: apply_promo_code_helper(session, user_city, user_id, promo_code))
+
+
 
     ############
-    # UTILITIES AND HELPERS
+    # GEO PARTITIONING
     ############
 
+    def get_geo_partitioning_queries(self, partition_map, zone_map):
 
-    # setup geo-partitioning if this is an enterprise cluster
-    def add_geo_partitioning(self, partition_map):
-        logging.debug("Partitioning database with : %s", partition_map)
+
+        def get_index_partition_name(region, index_name):
+            return region + "_" + index_name
+
         def create_partition_string(index_name=""):
             partition_string = ""
             first_region = True
             for region in partition_map:
-                region_name = region+"_"+index_name if index_name else region
+                region_name = get_index_partition_name(region, index_name) if index_name else region
                 partition_string += "PARTITION " + region_name + " VALUES IN (" if first_region \
                     else ", PARTITION " + region_name + " VALUES IN ("
                 first_region = False
@@ -137,24 +182,75 @@ class MovR:
                 partition_string += ")"
             return partition_string
 
+        queries_to_run = []
+
         partition_string = create_partition_string()
-        for table in ["vehicles", "users", "rides", "vehicle_location_histories"]:
-            logging.debug("Partitioning table: %s", table)
-            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ")"
-            self.session.execute(partition_sql)
+        for table in ["vehicles", "users", "rides", "vehicle_location_histories", "user_promo_codes"]:
+            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ");"
+            queries_to_run.append(partition_sql)
 
+            for partition_name in partition_map:
+                if not partition_name in zone_map:
+                    logging.info("partition_name %s not found in zone map. Skipping", partition_name)
+                    continue
 
-        #@todo: figure out how to partition gin index ix_vehicle_ext
-        for index in [{"index_name":"rides_auto_index_fk_city_ref_users", "prefix_name": "city"},
-                      {"index_name":"rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city"},
-                      {"index_name":"vehicles_auto_index_fk_city_ref_users", "prefix_name": "city"}]:
-            logging.debug("Partitioning index: %s", index)
+                zone_sql = "ALTER PARTITION " + partition_name + " OF TABLE " + table + " CONFIGURE ZONE USING constraints='[+region=" + \
+                           zone_map[partition_name] + "]';"
+                queries_to_run.append(zone_sql)
+
+        # @todo: figure out how to partition gin index ix_vehicle_ext
+
+        for index in [{"index_name": "rides_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "rides"},
+                      {"index_name": "rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city",
+                       "table": "rides"},
+                      {"index_name": "vehicles_auto_index_fk_city_ref_users", "prefix_name": "city",
+                       "table": "vehicles"}]:
             partition_string = create_partition_string(index_name=index["index_name"])
-            partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index["prefix_name"]+ ") (" + partition_string + ")"
-            self.session.execute(partition_sql)
+            partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index[
+                "prefix_name"] + ") (" + partition_string + ");"
+            queries_to_run.append(partition_sql)
+
+            for partition_name in partition_map:
+                if not partition_name in zone_map:
+                    logging.info("partition_name %s not found in zone map. Skipping", partition_name)
+                    continue
+                zone_sql = "ALTER PARTITION " + get_index_partition_name(partition_name,
+                                                                         index["index_name"]) + " OF TABLE " + \
+                           index["table"] + " CONFIGURE ZONE USING constraints='[+region=" + zone_map[
+                               partition_name] + "]';"
+                queries_to_run.append(zone_sql)
 
 
-        self.session.commit()
+        # create an index in each region so we can use the zone-config aware CBO
+        for partition_name in partition_map:
+            if not partition_name in zone_map:
+                logging.info("partition_name %s not found in zone map. Skipping index creation for promo codes",
+                             partition_name)
+                continue
+
+            sql = "CREATE INDEX promo_codes_" + partition_name + "_idx on promo_codes (code) STORING (description, creation_time, expiration_time, rules);"
+            queries_to_run.append(sql)
+
+            sql = "ALTER INDEX promo_codes@promo_codes_" + partition_name + "_idx CONFIGURE ZONE USING constraints='[+region=" + \
+                  zone_map[partition_name] + "]';";
+            queries_to_run.append(sql)
+
+        return queries_to_run
+
+
+    # setup geo-partitioning if this is an enterprise cluster
+    def add_geo_partitioning(self, partition_map, zone_map):
+        queries = self.get_geo_partitioning_queries(partition_map, zone_map)
+
+        def add_geo_partitioning_helper(session, queries):
+            for query in queries:
+                session.execute(query)
+
+        run_transaction(sessionmaker(bind=self.engine),
+                        lambda session: add_geo_partitioning_helper(session, queries))
+
+
+
 
 
 

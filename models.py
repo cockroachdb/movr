@@ -1,6 +1,7 @@
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Index, String, DateTime, Float, \
+from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Index, String, DateTime, Integer, Float, \
     PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
 from sqlalchemy.types import DECIMAL
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -21,6 +22,7 @@ class User(Base):
     address = Column(String)
     credit_card = Column(String)
     PrimaryKeyConstraint(city, id)
+    promo_codes = relationship("UserPromoCode")
 
     def __repr__(self):
         return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
@@ -76,4 +78,35 @@ class Vehicle(Base):
     def __repr__(self):
         return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 
+class PromoCode(Base):
+    __tablename__ = 'promo_codes'
+    code = Column(String)
+    description = Column(String)
+    creation_time = Column(DateTime, default=datetime.datetime.now)
+    expiration_time = Column(DateTime)
+    rules = Column(JSONB)
 
+    PrimaryKeyConstraint(code)
+    def __repr__(self):
+        return "<PromoCode(code='%s', description='%s', creation_time='%s', expiration_time='%s', rules='%s')>" % \
+               (self.code, self.description, self.creation_time, self.expiration_time, self.rules)
+
+
+class UserPromoCode(Base):
+    __tablename__ = 'user_promo_codes'
+    city = Column(String)
+    user_id = Column(UUID)
+    code = Column(String)
+    timestamp = Column(DateTime, default=datetime.datetime.now)
+    usage_count = Column(Integer, default=0)
+    promo_code = relationship("PromoCode")
+
+    PrimaryKeyConstraint(city, user_id, code)
+
+    __table_args__ = (ForeignKeyConstraint([city, user_id], ["users.city",
+                                                              "users.id"]),)
+    __table_args__ = (ForeignKeyConstraint([code], ["promo_codes.code"]),)
+
+    def __repr__(self):
+        return "<UserPromoCode(city='%s', user_id='%s', code='%s', timestamp='%s')>" % \
+               (self.user_city, self.user_id, self.code, self.timestamp)
