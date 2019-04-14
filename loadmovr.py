@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from urllib.parse import parse_qs, urlsplit, urlunsplit, urlencode
 from movr_stats import MovRStats
+from tabulate import tabulate
 
 
 RUNNING_THREADS = []
@@ -528,12 +529,47 @@ if __name__ == '__main__':
         partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
         partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
 
+        print("\nPartitioning Setting Summary\n")
+        rows = []
+        for partition in sorted(list(partition_city_map)):
+            for city in sorted(partition_city_map[partition]):
+                rows.append([partition,city])
+        print(tabulate(rows, ["partition", "city"]), "\n")
+
+        rows = []
+        for partition in partition_zone_map:
+            rows.append([partition, partition_zone_map[partition]])
+        print(tabulate(rows, ["partition", "zone where partitioned data will be moved"]), "\n")
+
+
         with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
             if args.print_queries:
                 queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
-                print("queries to geo-partition this movr database")
-                for query in queries:
+                print("queries to geo-partition the database")
+
+                rows = []
+
+                print("===table and index partitions===")
+                for query in queries["table_partitions"]:
                     print(query)
+
+                for query in queries["index_partitions"]:
+                    print(query)
+
+                print("===table and index zones===")
+                for query in queries["table_zones"]:
+                    print(query)
+                for query in queries["index_zones"]:
+                    print(query)
+
+                print("===promo code indices for locality aware optimization===")
+                for query in queries["promo_code_indices"]:
+                    print(query)
+
+                print("===promo code zones for locality aware optimization===")
+                for query in queries["promo_code_zones"]:
+                    print(query)
+
             else:
                 print("partitioning tables...")
                 movr.add_geo_partitioning(partition_city_map, partition_zone_map)
