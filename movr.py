@@ -244,21 +244,27 @@ class MovR:
             for query in queries:
                 session.execute(query)
 
+        logging.info("partitioned tables...")
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, queries["table_partitions"]))
 
+        logging.info("partitioned indices...")
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, queries["index_partitions"]))
 
+        logging.info("applying table zone configs...")
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, queries["table_zones"]))
 
+        logging.info("applying index zone configs...")
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, queries["index_zones"]))
 
+        logging.info("adding indexes for promo code reference tables...")
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, queries["promo_code_indices"]))
 
+        logging.info("applying zone configs for reference table indices...")
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: add_geo_partitioning_helper(session, queries["promo_code_zones"]))
 

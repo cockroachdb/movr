@@ -266,7 +266,7 @@ def setup_parser():
     load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
                              help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
                                   'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
-    load_parser.add_argument('--print-queries', dest='print_queries', action='store_true',
+    load_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                              help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
 
     ###############
@@ -541,9 +541,15 @@ if __name__ == '__main__':
             rows.append([partition, partition_zone_map[partition]])
         print(tabulate(rows, ["partition", "zone where partitioned data will be moved"]), "\n")
 
+        rows = []
+        for partition in partition_zone_map:
+            rows.append(["promo_codes", partition_zone_map[partition]])
+        print(tabulate(rows, ["reference table", "zones where index data will be replicated"]), "\n")
+
+
 
         with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
-            if args.print_queries:
+            if args.preview_queries:
                 queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
                 print("queries to geo-partition the database")
 
