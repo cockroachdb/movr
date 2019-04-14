@@ -51,7 +51,7 @@ class MovRStats:
             else:
                 return [action, round(elapsed, 0), 0,0,0,0,0,0,0 ]
 
-        header = ["action", "time(total)",  "ops(total)", "ops", "ops/second", "p50(ms)", "p95(ms)", "p99(ms)", "max(ms)"]
+        header = ["transaction name", "time(total)",  "ops(total)", "ops", "ops/second", "p50(ms)", "p95(ms)", "p99(ms)", "max(ms)"]
         rows = []
 
         self.mutex.acquire()
