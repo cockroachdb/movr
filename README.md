@@ -17,7 +17,34 @@ MovR can automatically partition data and apply zone configs using the `partitio
 Use region-city pairs to map cities to regional partitions and use region-zone pairs to map regional partitions to zones
 `docker run -it --rm cockroachdb/movr --echo-sql --app-name "movr-partition" --url "postgres://root@[ipaddress]/movr?sslmode=disable" partition --region-city-pair us_east:"new york" --region-city-pair central:chicago --region-city-pair us_west:seattle  --region-zone-pair us_east:us-east1 --region-zone-pair central:us-central1 --region-zone-pair us_west:us-west1`
 
-If you want to partition by hand (perhaps in a demo), MovR can print the partition commands with the `--print-queries` command.
+If you want to partition by hand (perhaps in a demo), MovR can print the partition commands with the `--preview-queries` command. Example:
+```
+Partitioning Setting Summary
+
+partition    city
+-----------  --------
+chicago      chicago
+new_york     new york
+seattle      seattle
+
+partition    zone where partitioned data will be moved
+-----------  -------------------------------------------
+new_york     us-east1
+chicago      us-central1
+seattle      us-west1
+
+reference table    zones where index data will be replicated
+-----------------  -------------------------------------------
+promo_codes        us-east1
+promo_codes        us-central1
+promo_codes        us-west1
+
+queries to geo-partition the database
+===table and index partitions===
+ALTER TABLE vehicles PARTITION BY LIST (city) (PARTITION new_york VALUES IN ('new york' ), PARTITION chicago VALUES IN ('chicago' ), PARTITION seattle VALUES IN ('seattle' ));
+ALTER TABLE users PARTITION BY LIST (city) (PARTITION new_york VALUES IN ('new york' ), PARTITION chicago VALUES IN ('chicago' ), PARTITION seattle VALUES IN ('seattle' ));
+ALTER TABLE rides PARTITION BY LIST (city) (PARTITION new_york VALUES IN ('new york' ), PARTITION chicago VALUES IN ('chicago' ), PARTITION seattle VALUES IN ('seattle' ));
+```
 
 ## Pre-built datasets
 
