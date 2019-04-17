@@ -17,6 +17,7 @@ from tabulate import tabulate
 
 RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
+DEFAULT_READ_PERCENTAGE = .95
 
 ACTION_ADD_VEHICLE = "add vehicle"
 ACTION_GET_VEHICLES = "get vehicles"
@@ -108,8 +109,9 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
                 # every write tick, simulate the various vehicles updating their locations if they are being used for rides
                 for ride in active_rides:
-                    start = time.time()
+
                     latlong = MovRGenerator.generate_random_latlong()
+                    start = time.time()
                     movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
                                               long=latlong['long'])
                     stats.add_latency_measurement(ACTION_UPDATE_RIDE_LOC, time.time() - start)
@@ -119,13 +121,15 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 if random.random() < .01:
                     # simulate a movr marketer creating a new promo code
                     start = time.time()
-                    movr_objects["global"].get("promo_codes", []).append(movr.create_promo_code(
+                    promo_code = movr.create_promo_code(
                         code="_".join(datagen.words(nb=3)) + "_" + str(time.time()),
                         description=datagen.paragraph(),
                         expiration_time=datetime.datetime.now() + datetime.timedelta(
                             days=random.randint(0, 30)),
-                        rules={"type": "percent_discount", "value": "10%"}))
+                        rules={"type": "percent_discount", "value": "10%"})
                     stats.add_latency_measurement(ACTION_NEW_CODE, time.time() - start)
+                    movr_objects["global"].get("promo_codes", []).append(promo_code)
+
 
                 elif random.random() < .1:
                     # simulate a user applying a promo code to her account
@@ -136,31 +140,35 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                 elif random.random() < .1:
                     # simulate new signup
                     start = time.time()
-                    movr_objects["local"][active_city]["users"].append(movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number()))
+                    new_user = movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number())
                     stats.add_latency_measurement(ACTION_NEW_USER, time.time() - start)
+                    movr_objects["local"][active_city]["users"].append(new_user)
+
                 elif random.random() < .1:
                     # simulate a user adding a new vehicle to the population
                     start = time.time()
-                    movr_objects["local"][active_city]["vehicles"].append(
-                        movr.add_vehicle(active_city,
+                    new_vehicle = movr.add_vehicle(active_city,
                                         owner_id = random.choice(movr_objects["local"][active_city]["users"])['id'],
                                         type = MovRGenerator.generate_random_vehicle(),
                                         vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
                                         status=MovRGenerator.get_vehicle_availability(),
-                                        current_location = datagen.address()))
+                                        current_location = datagen.address())
                     stats.add_latency_measurement(ACTION_ADD_VEHICLE, time.time() - start)
+                    movr_objects["local"][active_city]["vehicles"].append(new_vehicle)
+
                 elif random.random() < .5:
                     # simulate a user starting a ride
                     start = time.time()
                     ride = movr.start_ride(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
                                            random.choice(movr_objects["local"][active_city]["vehicles"])['id'])
-                    active_rides.append(ride)
                     stats.add_latency_measurement(ACTION_START_RIDE, time.time() - start)
+                    active_rides.append(ride)
+
                 else:
                     if len(active_rides):
                         #simulate a ride ending
-                        start = time.time()
                         ride = active_rides.pop()
+                        start = time.time()
                         movr.end_ride(ride['city'], ride['id'])
                         stats.add_latency_measurement(ACTION_END_RIDE, time.time() - start)
 
@@ -581,8 +589,10 @@ if __name__ == '__main__':
                 movr.add_geo_partitioning(partition_city_map, partition_zone_map)
                 print("done.")
 
-    else:
+    elif args.subparser_name == "run":
         run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
+    else:
+        run_load_generator(conn_string, DEFAULT_READ_PERCENTAGE, get_cities(None), args.echo_sql, args.num_threads)
 
 
 
