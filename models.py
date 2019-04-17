@@ -11,6 +11,7 @@ import datetime
 from generators import MovRGenerator
 
 #@todo: add interleaving
+#@todo: restore FKs and "relationship' functionality after this is fixed: https://github.com/cockroachdb/cockroach/issues/36859
 
 Base = declarative_base()
 
@@ -22,7 +23,7 @@ class User(Base):
     address = Column(String)
     credit_card = Column(String)
     PrimaryKeyConstraint(city, id)
-    promo_codes = relationship("UserPromoCode")
+    #promo_codes = relationship("UserPromoCode")
 
     def __repr__(self):
         return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
@@ -99,13 +100,13 @@ class UserPromoCode(Base):
     code = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.now)
     usage_count = Column(Integer, default=0)
-    promo_code = relationship("PromoCode")
+    #promo_code = relationship("PromoCode")
 
     PrimaryKeyConstraint(city, user_id, code)
 
     __table_args__ = (ForeignKeyConstraint([city, user_id], ["users.city",
                                                               "users.id"]),)
-    __table_args__ = (ForeignKeyConstraint([code], ["promo_codes.code"]),)
+    #__table_args__ = (ForeignKeyConstraint([code], ["promo_codes.code"]),)
 
     def __repr__(self):
         return "<UserPromoCode(city='%s', user_id='%s', code='%s', timestamp='%s')>" % \

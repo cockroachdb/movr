@@ -43,9 +43,9 @@ class MovR:
 
             # determine which codes are valid
             for upc in upcs:
-                if upc.promo_code.expiration_time > datetime.datetime.now():
+                promo_code = session.query(PromoCode).filter_by(code = upc.code).first()
+                if promo_code and promo_code.expiration_time > datetime.datetime.now():
                     upc.usage_count+=1;
-                    code = upc.promo_code
                     #@todo: do something with the code
 
             r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
