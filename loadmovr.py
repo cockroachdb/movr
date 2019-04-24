@@ -403,42 +403,45 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
-def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
+def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
                     skip_reload_tables, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
+
+
+
     with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
 
-        logging.info("loading cities %s", all_cities)
+        logging.info("loading cities %s", cities)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
                      num_users, num_vehicles, num_rides, num_histories, num_promo_codes)
 
-    usable_threads = min(num_threads, len(all_cities))  # don't create more than 1 thread per city
+    usable_threads = min(num_threads, len(cities))  # don't create more than 1 thread per city
     if usable_threads < num_threads:
         logging.info("Only using %d of %d requested threads, since we only create at most one thread per city",
                      usable_threads, num_threads)
 
-    cities_per_thread = int(math.ceil((float(len(all_cities)) / usable_threads)))
-    num_users_per_city = int(math.ceil((float(num_users) / len(all_cities))))
-    num_rides_per_city = int(math.ceil((float(num_rides) / len(all_cities))))
-    num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(all_cities))))
-    num_histories_per_city = int(math.ceil((float(num_histories) / len(all_cities))))
+    cities_per_thread = int(math.ceil((float(len(cities)) / usable_threads)))
+    num_users_per_city = int(math.ceil((float(num_users) / len(cities))))
+    num_rides_per_city = int(math.ceil((float(num_rides) / len(cities))))
+    num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(cities))))
+    num_histories_per_city = int(math.ceil((float(num_histories) / len(cities))))
 
     num_promo_codes_per_thread = int(math.ceil((float(num_promo_codes) / usable_threads)))
 
-    cities_to_load = all_cities
-
     RUNNING_THREADS = []
 
+
+    original_city_count = len(cities)
     for i in range(usable_threads):
-        if len(cities_to_load) > 0:
+        if len(cities) > 0:
             t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
                                                               num_rides_per_city, num_histories_per_city, num_promo_codes_per_thread,
-                                                              cities_to_load[:cities_per_thread],
+                                                              cities[:cities_per_thread],
                                                               echo_sql))
-            cities_to_load = cities_to_load[cities_per_thread:]
+            cities = cities[cities_per_thread:]
             t.start()
             RUNNING_THREADS.append(t)
 
@@ -447,22 +450,22 @@ def run_data_loader(conn_string, num_users, num_rides, num_vehicles, num_histori
 
     duration = time.time() - start_time
 
-    logging.info("populated %s cities in %f seconds", len(all_cities), duration)
+    logging.info("populated %s cities in %f seconds", original_city_count, duration)
 
 # generate fake load for objects within the provided city list
 def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_threads):
     if read_percentage < 0 or read_percentage > 1:
         raise ValueError("read percentage must be between 0 and 1")
 
-    cities = all_cities if city_list is None else city_list
-    logging.info("simulating movr load for cities %s", cities)
+
+    logging.info("simulating movr load for cities %s", city_list)
 
     movr_objects = { "local": {}, "global": {}}
 
     logging.info("warming up....")
     with MovR(conn_string, echo=echo_sql) as movr:
         active_rides = []
-        for city in cities:
+        for city in city_list:
             movr_objects["local"][city] = {"users": movr.get_users(city), "vehicles": movr.get_vehicles(city)}
             if len(list(movr_objects["local"][city]["vehicles"])) == 0 or len(list(movr_objects["local"][city]["users"])) == 0:
                 logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
@@ -473,7 +476,7 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
 
     RUNNING_THREADS = []
     for i in range(num_threads):
-        t = threading.Thread(target=simulate_movr_load, args=(conn_string, cities, movr_objects,
+        t = threading.Thread(target=simulate_movr_load, args=(conn_string, city_list, movr_objects,
                                                     active_rides, read_percentage, echo_sql ))
         t.start()
         RUNNING_THREADS.append(t)
@@ -529,8 +532,7 @@ if __name__ == '__main__':
 
 
     if args.subparser_name=='load':
-        all_cities = get_cities(args.city)
-        run_data_loader(conn_string, args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
+        run_data_loader(conn_string, get_cities(args.city), args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
                         args.skip_reload_tables, args.echo_sql)
     elif args.subparser_name=="partition":
         # population partitions
@@ -590,7 +592,7 @@ if __name__ == '__main__':
                 print("done.")
 
     elif args.subparser_name == "run":
-        run_load_generator(conn_string, args.read_percentage, args.city, args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, args.read_percentage, get_cities(args.city), args.echo_sql, args.num_threads)
     else:
         run_load_generator(conn_string, DEFAULT_READ_PERCENTAGE, get_cities(None), args.echo_sql, args.num_threads)
 
