@@ -21,7 +21,7 @@ DEFAULT_READ_PERCENTAGE = .95
 
 ACTION_ADD_VEHICLE = "add vehicle"
 ACTION_GET_VEHICLES = "get vehicles"
-ACTION_UPDATE_RIDE_LOC = "update ride location"
+ACTION_UPDATE_RIDE_LOC = "log ride location"
 ACTION_NEW_CODE = "new promo code"
 ACTION_APPLY_CODE = "apply promo code"
 ACTION_NEW_USER = "new user"

@@ -57,7 +57,7 @@ class VehicleLocationHistory(Base):
     lat = Column(Float)
     long = Column(Float)
     PrimaryKeyConstraint(city, ride_id, timestamp)
-    __table_args__ = (ForeignKeyConstraint([city, ride_id], ["rides.city", "rides.id"]),)
+    #__table_args__ = (ForeignKeyConstraint([city, ride_id], ["rides.city", "rides.id"]),) #@todo: cut until FK performance improves in 19.2
 
     def __repr__(self):
         return "<VehicleLocationHistory(city='%s', ride_id='%s', timestamp='%s', lat='%s', long='%s')>" % \
