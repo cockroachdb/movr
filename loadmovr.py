@@ -25,7 +25,6 @@ ACTION_UPDATE_RIDE_LOC = "log ride location"
 ACTION_NEW_CODE = "new promo code"
 ACTION_APPLY_CODE = "apply promo code"
 ACTION_NEW_USER = "new user"
-ACTION_ADD_VEHICLE = "add vehicle"
 ACTION_START_RIDE = "start ride"
 ACTION_END_RIDE = "end ride"
 
@@ -118,7 +117,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
 
 
                 #do write operations randomly
-                if random.random() < .01:
+                if random.random() < .03:
                     # simulate a movr marketer creating a new promo code
                     start = time.time()
                     promo_code = movr.create_promo_code(
@@ -137,7 +136,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
                     movr.apply_promo_code(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
                         random.choice(movr_objects["global"]["promo_codes"]))
                     stats.add_latency_measurement(ACTION_APPLY_CODE, time.time() - start)
-                elif random.random() < .1:
+                elif random.random() < .3:
                     # simulate new signup
                     start = time.time()
                     new_user = movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number())
@@ -486,7 +485,7 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
 
         stats.print_stats(action_list=[ACTION_ADD_VEHICLE, ACTION_GET_VEHICLES, ACTION_UPDATE_RIDE_LOC,
                            ACTION_NEW_CODE, ACTION_APPLY_CODE, ACTION_NEW_USER,
-                           ACTION_ADD_VEHICLE, ACTION_START_RIDE, ACTION_END_RIDE])
+                           ACTION_START_RIDE, ACTION_END_RIDE])
 
         stats.new_window()
 
