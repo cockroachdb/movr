@@ -45,13 +45,13 @@ class MovRStats:
                 return [action, round(elapsed, 0),  self.cumulative_counts[action], len(self.window_stats[action]),
                         len(self.window_stats[action]) / elapsed,
                         round(float(get_percentile_measurement(action, 50)) * 1000, 2),
+                        round(float(get_percentile_measurement(action, 90)) * 1000, 2),
                         round(float(get_percentile_measurement(action, 95)) * 1000, 2),
-                        round(float(get_percentile_measurement(action, 99)) * 1000, 2),
                         round(float(get_percentile_measurement(action, 100)) * 1000, 2)]
             else:
                 return [action, round(elapsed, 0), 0,0,0,0,0,0,0 ]
 
-        header = ["transaction name", "time(total)",  "ops(total)", "ops", "ops/second", "p50(ms)", "p95(ms)", "p99(ms)", "max(ms)"]
+        header = ["transaction name", "time(total)",  "ops(total)", "ops", "ops/second", "p50(ms)", "p90(ms)", "p95(ms)", "max(ms)"]
         rows = []
 
         self.mutex.acquire()

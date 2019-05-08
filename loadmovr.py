@@ -481,7 +481,7 @@ def run_load_generator(conn_string, read_percentage, city_list, echo_sql, num_th
         RUNNING_THREADS.append(t)
 
     while True: #keep main thread alive to catch exit signals
-        time.sleep(10)
+        time.sleep(15)
 
         stats.print_stats(action_list=[ACTION_ADD_VEHICLE, ACTION_GET_VEHICLES, ACTION_UPDATE_RIDE_LOC,
                            ACTION_NEW_CODE, ACTION_APPLY_CODE, ACTION_NEW_USER,
