@@ -107,7 +107,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
             else:
 
                 # every write tick, simulate the various vehicles updating their locations if they are being used for rides
-                for ride in active_rides:
+                for ride in active_rides[0:10]:
 
                     latlong = MovRGenerator.generate_random_latlong()
                     start = time.time()
