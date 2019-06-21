@@ -499,7 +499,7 @@ if __name__ == '__main__':
 
     args = setup_parser().parse_args()
 
-    if not re.search('.*26257/(.*)\?', args.conn_string):
+    if not re.search('.*://.*/(.*)\?', args.conn_string):
         logging.error("The connection string needs to point to a database. Example: postgres://root@localhost:26257/mymovrdatabase?sslmode=disable")
         sys.exit(1)
 
