@@ -86,14 +86,14 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
 # Generates evenly distributed load among the provided cities
 
 
-def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, connection_reset_time_in_seconds, echo_sql = False):
+def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, connection_duration_in_seconds, echo_sql = False):
 
     datagen = Faker()
     while True:
-        logging.debug("creating a new connection to %s, which will reset in %d seconds", conn_string, connection_reset_time_in_seconds)
+        logging.debug("creating a new connection to %s, which will reset in %d seconds", conn_string, connection_duration_in_seconds)
         try:
             with MovR(conn_string, echo=echo_sql) as movr:
-                timeout = time.time() + connection_reset_time_in_seconds #refresh connections so load can balance among cluster nodes even if the cluster size changes
+                timeout = time.time() + connection_duration_in_seconds #refresh connections so load can balance among cluster nodes even if the cluster size changes
                 while True:
 
                     if TERMINATE_GRACEFULLY:
@@ -291,7 +291,7 @@ def setup_parser():
     # RUN COMMANDS
     ###############
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
-    run_parser.add_argument('--connection-reset-time', dest='connection_reset_time_in_seconds', type=int,
+    run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
                             help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=30)
     run_parser.add_argument('--city', dest='city', action='append',
@@ -465,7 +465,7 @@ def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num
     logging.info("populated %s cities in %f seconds", original_city_count, duration)
 
 # generate fake load for objects within the provided city list
-def run_load_generator(conn_string, read_percentage, connection_reset_time_in_seconds, city_list, echo_sql, num_threads):
+def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, echo_sql, num_threads):
     if read_percentage < 0 or read_percentage > 1:
         raise ValueError("read percentage must be between 0 and 1")
 
@@ -489,7 +489,7 @@ def run_load_generator(conn_string, read_percentage, connection_reset_time_in_se
     RUNNING_THREADS = []
     for i in range(num_threads):
         t = threading.Thread(target=simulate_movr_load, args=(conn_string, city_list, movr_objects,
-                                                    active_rides, read_percentage, connection_reset_time_in_seconds, echo_sql ))
+                                                    active_rides, read_percentage, connection_duration_in_seconds, echo_sql ))
         t.start()
         RUNNING_THREADS.append(t)
 
@@ -604,9 +604,9 @@ if __name__ == '__main__':
                 print("done.")
 
     elif args.subparser_name == "run":
-        run_load_generator(conn_string, args.read_percentage, args.connection_reset_time_in_seconds, get_cities(args.city), args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, args.read_percentage, args.connection_duration_in_seconds, get_cities(args.city), args.echo_sql, args.num_threads)
     else:
-        run_load_generator(conn_string, DEFAULT_READ_PERCENTAGE, args.connection_reset_time_in_seconds, get_cities(None), args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, DEFAULT_READ_PERCENTAGE, args.connection_duration_in_seconds, get_cities(None), args.echo_sql, args.num_threads)
 
 
 
