@@ -101,6 +101,7 @@ def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_per
             if random.random() < read_percentage:
                 # simulate user loading screen
                 start = time.time()
+                #@todo: candidate for follower read
                 movr.get_vehicles(active_city,25)
                 stats.add_latency_measurement("get vehicles",time.time() - start )
 

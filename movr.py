@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
 
@@ -108,12 +108,33 @@ class MovR:
             return list(map(lambda user: {'city': user.city, 'id': user.id}, users))
         return run_transaction(sessionmaker(bind=self.engine), lambda session: get_users_helper(session, city, limit))
 
-    def get_vehicles(self, city, limit=None):
-        def get_vehicles_helper(session, city, limit=None):
-            vehicles = session.query(Vehicle).filter_by(city=city).limit(limit).all()
-            return list(map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles))
+    def get_vehicles(self, city, limit=None, follower_read=False):
+        if follower_read:
+            #@todo: AOST can't be used in a transaction. what does this mean for re-tries?
+            # python library needs to be updated
+            def get_vehicles_fr_helper(session, city, limit=None):
+                if limit:
+                    sql = text(
+                        "select city, id from vehicles AS OF SYSTEM TIME experimental_follower_read_timestamp() where city=:city and limit=:limit")
+                    vehicles = session.execute(sql, {"city":city, "limit":limit})
+                else:
+                    sql = text(
+                        "select city, id from vehicles AS OF SYSTEM TIME experimental_follower_read_timestamp() where city=:city")
+                    vehicles = session.execute(sql, {"city": city})
+                return list(map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles))
 
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, city, limit))
+            return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_fr_helper(session, city, limit))
+
+
+
+
+
+        else:
+            def get_vehicles_helper(session, city, limit=None):
+                vehicles = session.query(Vehicle).filter_by(city=city).limit(limit).all()
+                return list(map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles))
+
+            return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, city, limit))
 
     def get_active_rides(self, city, limit=None):
         def get_active_rides_helper(session, city, limit=None):
