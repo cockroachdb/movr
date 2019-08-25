@@ -1,5 +1,5 @@
-sqlalchemy
-cockroachdb
+SQLAlchemy==1.2.10
+cockroachdb>=0.3.2
 names
 faker
 sqlalchemy-utils
