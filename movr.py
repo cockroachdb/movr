@@ -102,42 +102,42 @@ class MovR:
                                                                   city, owner_id, current_location, type,
                                                                   vehicle_metadata, status))
 
-    def get_users(self, city, follower_read=False, limit=None):
-        def get_users_helper(session, city, follower_read, limit=None):
-            if follower_read:
+    def get_users(self, city, follower_reads=False, limit=None):
+        def get_users_helper(session, city, follower_reads, limit=None):
+            if follower_reads:
                 session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
             users = session.query(User).filter_by(city=city).limit(limit).all()
             return list(map(lambda user: {'city': user.city, 'id': user.id}, users))
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_users_helper(session, city, follower_read, limit))
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_users_helper(session, city, follower_reads, limit))
 
-    def get_vehicles(self, city, follower_read=False, limit=None):
+    def get_vehicles(self, city, follower_reads=False, limit=None):
 
-            def get_vehicles_helper(session, city, follower_read, limit=None):
-                if follower_read:
+            def get_vehicles_helper(session, city, follower_reads, limit=None):
+                if follower_reads:
                     session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
                 vehicles = session.query(Vehicle).filter_by(city=city).limit(limit).all()
                 return list(map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles))
 
-            return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, city, follower_read, limit))
+            return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, city, follower_reads, limit))
 
-    def get_active_rides(self, city, follower_read=False, limit=None):
-        def get_active_rides_helper(session, city, follower_read, limit=None):
-            if follower_read:
+    def get_active_rides(self, city, follower_reads=False, limit=None):
+        def get_active_rides_helper(session, city, follower_reads, limit=None):
+            if follower_reads:
                 session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
             rides = session.query(Ride).filter_by(city=city, end_time=None).limit(limit).all()
             return list(map(lambda ride: {'city': city, 'id': ride.id}, rides))
 
         return run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: get_active_rides_helper(session, city, follower_read, limit))
+                               lambda session: get_active_rides_helper(session, city, follower_reads, limit))
 
-    def get_promo_codes(self, follower_read=False, limit=None):
-        def get_promo_codes_helper(session, follower_read, limit=None):
-            if follower_read:
+    def get_promo_codes(self, follower_reads=False, limit=None):
+        def get_promo_codes_helper(session, follower_reads, limit=None):
+            if follower_reads:
                 session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
             pcs = session.query(PromoCode).limit(limit).all()
             return list(map(lambda pc: pc.code, pcs))
 
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_promo_codes_helper(session, follower_read, limit))
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_promo_codes_helper(session, follower_reads, limit))
 
 
     def create_promo_code(self, code, description, expiration_time, rules):
