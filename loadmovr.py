@@ -292,7 +292,7 @@ def setup_parser():
     ###############
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
     run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
-                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
+                            help='The number of seconds to keep database connections alive before resetting them.',
                             default=30)
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
