@@ -295,7 +295,7 @@ def setup_parser():
                             help='The number of seconds to keep database connections alive before resetting them.',
                             default=30)
     run_parser.add_argument('--follower-reads', dest='follower_reads', action='store_true', default=False,
-                             help='Use the closest replica to serve the slightly stale read requests')
+                             help='Use the closest replica to serve fast, but slightly stale read requests')
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
     run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
