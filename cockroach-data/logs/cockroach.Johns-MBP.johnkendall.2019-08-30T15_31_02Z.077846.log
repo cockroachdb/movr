@@ -1,0 +1,37 @@
+I190830 15:31:02.866187 1 util/log/clog.go:1199  [config] file created at: 2019/08/30 15:31:02
+I190830 15:31:02.866187 1 util/log/clog.go:1199  [config] running on machine: Johns-MBP
+I190830 15:31:02.866187 1 util/log/clog.go:1199  [config] binary: CockroachDB CCL v19.1.4 (x86_64-apple-darwin18.7.0, built 2019/08/28 13:29:03, go1.12.7)
+I190830 15:31:02.866187 1 util/log/clog.go:1199  [config] arguments: [cockroach start --insecure --host localhost]
+I190830 15:31:02.866187 1 util/log/clog.go:1199  line format: [IWEF]yymmdd hh:mm:ss.uuuuuu goid file:line msg utf8=✓
+I190830 15:31:02.866183 1 cli/start.go:1033  logging to directory /Users/johnkendall/cockroach/workspace/movr/cockroach-data/logs
+W190830 15:31:02.866590 1 cli/start.go:1068  RUNNING IN INSECURE MODE!
+
+- Your cluster is open for any client that can access localhost.
+- Any user, even root, can log in without providing a password.
+- Any user, connecting as root, can read or write any data in your cluster.
+- There is no network encryption nor authentication, and thus no confidentiality.
+
+Check out how to secure your cluster: https://www.cockroachlabs.com/docs/v19.1/secure-a-cluster.html
+W190830 15:31:02.866696 1 cli/start.go:944  Using the default setting for --cache (128 MiB).
+  A significantly larger value is usually needed for good performance.
+  If you have a dedicated server a reasonable setting is --cache=.25 (4.0 GiB).
+W190830 15:31:02.866733 1 cli/start.go:957  Using the default setting for --max-sql-memory (128 MiB).
+  A significantly larger value is usually needed in production.
+  If you have a dedicated server a reasonable setting is --max-sql-memory=.25 (4.0 GiB).
+I190830 15:31:02.866806 1 cli/start.go:1082  CockroachDB CCL v19.1.4 (x86_64-apple-darwin18.7.0, built 2019/08/28 13:29:03, go1.12.7)
+I190830 15:31:02.974188 1 server/config.go:386  system total memory: 16 GiB
+I190830 15:31:02.974261 1 server/config.go:388  server configuration:
+max offset             500000000
+cache size             128 MiB
+SQL memory pool size   128 MiB
+scan interval          10m0s
+scan min idle time     10ms
+scan max idle time     1s
+event log enabled      true
+I190830 15:31:02.974283 1 cli/start.go:922  using local environment variables: COCKROACH_BACKGROUND_RESTART=1
+I190830 15:31:02.974336 1 cli/start.go:929  process identity: uid 501 euid 501 gid 20 egid 20
+I190830 15:31:02.974353 1 cli/start.go:554  starting cockroach node
+I190830 15:31:02.977702 13 storage/engine/rocksdb.go:613  opening rocksdb instance at "/Users/johnkendall/cockroach/workspace/movr/cockroach-data/cockroach-temp541476333"
+I190830 15:31:02.994901 13 server/server.go:879  [n?] monitoring forward clock jumps based on server.clock.forward_jump_check_enabled
+E190830 15:31:03.011203 1 cli/error.go:229  cockroach server exited with error: consider changing the port via --listen-addr: listen tcp 127.0.0.1:26257: bind: address already in use
+Error: cockroach server exited with error: consider changing the port via --listen-addr: listen tcp 127.0.0.1:26257: bind: address already in use

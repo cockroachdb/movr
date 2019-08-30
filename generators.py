@@ -1,8 +1,10 @@
 import uuid, random
-#@todo: how to do this in the database?
 
 
-#@todo: we shouldnt repeat the word generator in the class methods
+# @todo: how to do this in the database?
+
+
+# @todo: we shouldnt repeat the word generator in the class methods
 class MovRGenerator:
     @staticmethod
     def generate_uuid():
@@ -10,7 +12,7 @@ class MovRGenerator:
 
     @staticmethod
     def generate_revenue():
-        return random.uniform(1,100)
+        return random.uniform(1, 100)
 
     @staticmethod
     def generate_random_vehicle():
@@ -28,12 +30,11 @@ class MovRGenerator:
     def generate_random_latlong():
         return {'lat': random.uniform(-180, 180), 'long': random.uniform(-90, 90)}
 
-
     @staticmethod
     def gen_bike_brand():
-        return random.choice(['Merida','Fuji'
-        'Cervelo', 'Pinarello',
-        'Santa Cruz', 'Kona', 'Schwinn'])
+        return random.choice(['Merida', 'Fuji'
+                                        'Cervelo', 'Pinarello',
+                              'Santa Cruz', 'Kona', 'Schwinn'])
 
     @staticmethod
     def generate_vehicle_metadata(type):
