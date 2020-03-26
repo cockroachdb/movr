@@ -17,7 +17,7 @@ class MovR:
 
     def __init__(self, conn_string, init_tables = False, multi_region = False, echo = False):
 
-
+        self.multi_region = multi_region
         self.engine = create_engine(conn_string, convert_unicode=True, echo=echo)
 
 
@@ -40,10 +40,10 @@ class MovR:
     def start_ride(self, city, rider_id, vehicle_id):
 
         def start_ride_helper(session, city, rider_id, vehicle_id):
-            v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first()
+            v = session.query(Vehicle).filter_by(city=city, id=vehicle_id).first() if self.multi_region else session.query(Vehicle).filter_by(id=vehicle_id).first()
 
             # get promo codes associated with this user's account
-            upcs = session.query(UserPromoCode).filter_by(city=city, user_id=rider_id).all()
+            upcs = session.query(UserPromoCode).filter_by(city=city, user_id=rider_id).all() if self.multi_region else session.query(UserPromoCode).filter_by(user_id=rider_id).all()
 
             # determine which codes are valid
             for upc in upcs:
@@ -62,10 +62,11 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: start_ride_helper(session, city, rider_id, vehicle_id))
 
+    
     def end_ride(self, city, ride_id):
         def end_ride_helper(session, city, ride_id):
-            ride = session.query(Ride).filter_by(city=city, id=ride_id).first()
-            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first()
+            ride = session.query(Ride).filter_by(city=city, id=ride_id).first() if self.multi_region else session.query(Ride).filter_by(id=ride_id).first()
+            v = session.query(Vehicle).filter_by(city=city, id=ride.vehicle_id).first() if self.multi_region else session.query(Vehicle).filter_by(id=ride.vehicle_id).first()
             ride.end_address = v.current_location
             ride.revenue = MovRGenerator.generate_revenue()
             ride.end_time = datetime.datetime.now()
@@ -160,7 +161,8 @@ class MovR:
             if pc:
                 # see if it has already been applied
                 upc = session.query(UserPromoCode).\
-                    filter_by(city = user_city, user_id = user_id, code = code).one_or_none()
+                    filter_by(city = user_city, user_id = user_id, code = code).one_or_none() if self.multi_region else session.query(UserPromoCode).\
+                    filter_by(user_id = user_id, code = code).one_or_none()
                 if not upc:
                     upc = UserPromoCode(city = user_city, user_id = user_id, code = code)
                     session.add(upc)

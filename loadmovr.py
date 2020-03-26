@@ -20,6 +20,8 @@ RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
 DEFAULT_READ_PERCENTAGE = .95
 
+#@todo: add checks for multi-region operations on single region schemas.
+
 ACTION_ADD_VEHICLE = "add vehicle"
 ACTION_GET_VEHICLES = "get vehicles"
 ACTION_UPDATE_RIDE_LOC = "log ride location"
@@ -86,13 +88,13 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
 # Generates evenly distributed load among the provided cities
 
 
-def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql = False):
+def simulate_movr_load(conn_string, use_single_region, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql = False):
 
     datagen = Faker()
     while True:
         logging.debug("creating a new connection to %s, which will reset in %d seconds", conn_string, connection_duration_in_seconds)
         try:
-            with MovR(conn_string, echo=echo_sql) as movr:
+            with MovR(conn_string, multi_region= not use_single_region, echo=echo_sql) as movr:
                 timeout = time.time() + connection_duration_in_seconds #refresh connections so load can balance among cluster nodes even if the cluster size changes
                 while True:
 
@@ -418,7 +420,6 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
-#@todo: switch to named arguments
 def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
                     skip_reload_tables, use_single_region, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
@@ -469,7 +470,7 @@ def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num
     logging.info("populated %s cities in %f seconds", original_city_count, duration)
 
 # generate fake load for objects within the provided city list
-def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, follower_reads, echo_sql, num_threads):
+def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, use_single_region, follower_reads, echo_sql, num_threads):
     if read_percentage < 0 or read_percentage > 1:
         raise ValueError("read percentage must be between 0 and 1")
 
@@ -479,7 +480,7 @@ def run_load_generator(conn_string, read_percentage, connection_duration_in_seco
     movr_objects = { "local": {}, "global": {}}
 
     logging.info("warming up....")
-    with MovR(conn_string, echo=echo_sql) as movr:
+    with MovR(conn_string, multi_region= not use_single_region, echo=echo_sql) as movr:
         active_rides = []
         for city in city_list:
             movr_objects["local"][city] = {"users": movr.get_users(city, follower_reads), "vehicles": movr.get_vehicles(city, follower_reads)}
@@ -492,8 +493,9 @@ def run_load_generator(conn_string, read_percentage, connection_duration_in_seco
 
     RUNNING_THREADS = []
     for i in range(num_threads):
-        t = threading.Thread(target=simulate_movr_load, args=(conn_string, city_list, movr_objects,
-                                                    active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql ))
+        t = threading.Thread(target=simulate_movr_load, args=(conn_string, use_single_region, city_list, movr_objects,
+                                                    active_rides, read_percentage, follower_reads,
+                                                              connection_duration_in_seconds, echo_sql ))
         t.start()
         RUNNING_THREADS.append(t)
 
@@ -552,6 +554,7 @@ if __name__ == '__main__':
         run_data_loader(conn_string, cities= get_cities(args.city), num_users= args.num_users, num_rides= args.num_rides, num_vehicles= args.num_vehicles, num_histories= args.num_histories,
                         num_promo_codes= args.num_promo_codes, num_threads= args.num_threads, use_single_region=args.single_region,
                         skip_reload_tables= args.skip_reload_tables, echo_sql= args.echo_sql)
+
     elif args.subparser_name=="partition":
         # population partitions
         partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
@@ -576,7 +579,7 @@ if __name__ == '__main__':
 
 
 
-        with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
+        with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
             if args.preview_queries:
                 queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
                 print("queries to geo-partition the database")
@@ -610,9 +613,13 @@ if __name__ == '__main__':
                 print("done.")
 
     elif args.subparser_name == "run":
-        run_load_generator(conn_string, args.read_percentage, args.connection_duration_in_seconds, get_cities(args.city), args.follower_reads, args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, read_percentage= args.read_percentage, connection_duration_in_seconds= args.connection_duration_in_seconds,
+                           city_list= get_cities(args.city), use_single_region=args.single_region, follower_reads= args.follower_reads, echo_sql= args.echo_sql, num_threads= args.num_threads)
     else:
-        run_load_generator(conn_string, DEFAULT_READ_PERCENTAGE, args.connection_duration_in_seconds, get_cities(None), args.follower_reads, args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, read_percentage= DEFAULT_READ_PERCENTAGE,
+                           connection_duration_in_seconds= args.connection_duration_in_seconds, city_list= get_cities(None),
+                           use_single_region=args.single_region,
+                           follower_reads= args.follower_reads, echo_sql= args.echo_sql, num_threads= args.num_threads)
 
 
 
