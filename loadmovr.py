@@ -251,7 +251,8 @@ def setup_parser():
                         help='The name that can be used for filtering statements by client in the Admin UI.')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
-
+    parser.add_argument('--single-region', dest='single_region', action='store_true', default=False,
+                             help='Run MovR with single region schemas. Useful for showing an app that starts small and scales out.')
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
                         help='set this if you want to print all executed SQL statements')
 

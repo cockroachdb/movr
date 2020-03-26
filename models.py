@@ -1,6 +1,6 @@
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+#from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Index, String, DateTime, Integer, Float, \
     PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
 from sqlalchemy.types import DECIMAL
@@ -13,16 +13,18 @@ from generators import MovRGenerator
 #@todo: add interleaving
 #@todo: restore FKs and "relationship' functionality after this is fixed: https://github.com/cockroachdb/cockroach/issues/36859
 
+#default to the single region schema and dynamically make multi-region based on command line args.
+
 Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column(UUID, default=MovRGenerator.generate_uuid)
+    id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
     city = Column(String)
     name = Column(String)
     address = Column(String)
     credit_card = Column(String)
-    PrimaryKeyConstraint(city, id)
+    #PrimaryKeyConstraint(city, id)
     #promo_codes = relationship("UserPromoCode")
 
     def __repr__(self):
@@ -31,7 +33,7 @@ class User(Base):
 #@todo: sqlalchemy fails silently if compound fks are in the wrong order.
 class Ride(Base):
     __tablename__ = 'rides'
-    id = Column(UUID, default=MovRGenerator.generate_uuid)
+    id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
     city = Column(String)
     vehicle_city = Column(String, CheckConstraint('vehicle_city=city')) #@todo: annoying workaround for https://github.com/cockroachdb/cockroach/issues/23580
     rider_id = Column(UUID)
@@ -41,9 +43,12 @@ class Ride(Base):
     start_time = Column(DateTime, default=datetime.datetime.now)
     end_time = Column(DateTime)
     revenue = Column(DECIMAL(10,2))
-    PrimaryKeyConstraint(city, id)
-    __table_args__ = (ForeignKeyConstraint([city, rider_id], ["users.city", "users.id"]),) #this requires an index or it fails silently:  https://github.com/cockroachdb/cockroach/issues/22253
-    __table_args__ = (ForeignKeyConstraint([vehicle_city, vehicle_id], ["vehicles.city", "vehicles.id"]),)
+    #PrimaryKeyConstraint(city, id)
+    #@todo: fix fks to make them signle region
+    #__table_args__ = (ForeignKeyConstraint([city, rider_id], ["users.city", "users.id"]),) #this requires an index or it fails silently:  https://github.com/cockroachdb/cockroach/issues/22253
+    #__table_args__ = (ForeignKeyConstraint([vehicle_city, vehicle_id], ["vehicles.city", "vehicles.id"]),)
+    __table_args__ = (ForeignKeyConstraint([rider_id], ["users.id"]),)  # this requires an index or it fails silently:  https://github.com/cockroachdb/cockroach/issues/22253
+    __table_args__ = (ForeignKeyConstraint([vehicle_id], ["vehicles.id"]),)
 
 
     def __repr__(self):
@@ -56,7 +61,8 @@ class VehicleLocationHistory(Base):
     timestamp = Column(DateTime, default=datetime.datetime.now)
     lat = Column(Float)
     long = Column(Float)
-    PrimaryKeyConstraint(city, ride_id, timestamp)
+    #PrimaryKeyConstraint(city, ride_id, timestamp)
+    PrimaryKeyConstraint(ride_id, timestamp)
     #__table_args__ = (ForeignKeyConstraint([city, ride_id], ["rides.city", "rides.id"]),) #@todo: cut until FK performance improves in 19.2
 
     def __repr__(self):
@@ -65,7 +71,7 @@ class VehicleLocationHistory(Base):
 
 class Vehicle(Base):
     __tablename__ = 'vehicles'
-    id = Column(UUID, default=MovRGenerator.generate_uuid)
+    id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
     city = Column(String)
     type = Column(String)
     owner_id = Column(UUID)
@@ -73,21 +79,22 @@ class Vehicle(Base):
     status = Column(String)
     current_location = Column(String)
     ext = Column(JSONB)
-    PrimaryKeyConstraint(city, id)
-    __table_args__ = (ForeignKeyConstraint([city, owner_id], ["users.city", "users.id"]),)
-    
+    #PrimaryKeyConstraint(city, id)
+    #__table_args__ = (ForeignKeyConstraint([city, owner_id], ["users.city", "users.id"]),)
+    __table_args__ = (ForeignKeyConstraint([owner_id], ["users.id"]),)
+
     def __repr__(self):
         return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 
 class PromoCode(Base):
     __tablename__ = 'promo_codes'
-    code = Column(String)
+    code = Column(String, primary_key=True)
     description = Column(String)
     creation_time = Column(DateTime, default=datetime.datetime.now)
     expiration_time = Column(DateTime)
     rules = Column(JSONB)
 
-    PrimaryKeyConstraint(code)
+    #PrimaryKeyConstraint(code)
     def __repr__(self):
         return "<PromoCode(code='%s', description='%s', creation_time='%s', expiration_time='%s', rules='%s')>" % \
                (self.code, self.description, self.creation_time, self.expiration_time, self.rules)
@@ -102,11 +109,13 @@ class UserPromoCode(Base):
     usage_count = Column(Integer, default=0)
     #promo_code = relationship("PromoCode")
 
-    PrimaryKeyConstraint(city, user_id, code)
+    #PrimaryKeyConstraint(city, user_id, code)
+    PrimaryKeyConstraint(user_id, code)
 
-    __table_args__ = (ForeignKeyConstraint([city, user_id], ["users.city",
-                                                              "users.id"]),)
+    #__table_args__ = (ForeignKeyConstraint([city, user_id], ["users.city",
+     #                                                         "users.id"]),)
     #__table_args__ = (ForeignKeyConstraint([code], ["promo_codes.code"]),)
+    __table_args__ = (ForeignKeyConstraint([user_id], ["users.id"]),)
 
     def __repr__(self):
         return "<UserPromoCode(city='%s', user_id='%s', code='%s', timestamp='%s')>" % \
