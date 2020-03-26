@@ -253,8 +253,7 @@ def setup_parser():
                         help='The name that can be used for filtering statements by client in the Admin UI.')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
-    parser.add_argument('--single-region', dest='single_region', action='store_true', default=False,
-                             help='Run MovR with single region schemas. Useful for showing an app that starts small and scales out.')
+
 
 
 
@@ -265,6 +264,8 @@ def setup_parser():
     # LOAD COMMANDS
     ###############
     load_parser = subparsers.add_parser('load', help="load movr data into a database")
+    load_parser.add_argument('--single-region', dest='single_region', action='store_true', default=False,
+                        help='Load MovR with single region schemas. Useful for showing an app that starts small and scales out.')
     load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
                              help='The number of random users to add to the dataset')
     load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
@@ -280,11 +281,28 @@ def setup_parser():
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
 
+    ###############
+    # RUN COMMANDS
+    ###############
+    run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
+    run_parser.add_argument('--single-region', dest='single_region', action='store_true', default=False,
+                            help='Run MovR with single region queries that don\'t use composite primary keys.')
+    run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
+                            help='The number of seconds to keep database connections alive before resetting them.',
+                            default=30)
+    run_parser.add_argument('--follower-reads', dest='follower_reads', action='store_true', default=False,
+                            help='Use the closest replica to serve fast, but slightly stale, read requests')
+    run_parser.add_argument('--city', dest='city', action='append',
+                            help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
+    run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
+                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
+                            default=.95)
+
     ###################
     #regional_scale_out
     ###################
 
-    scale_out_parser = subparsers.add_parser('regional_scale_out', help="update schema to support multi-region deployments")
+    scale_out_parser = subparsers.add_parser('configure_multi_region', help="perform online update to single-region schema to enable multi-region deployments")
 
     scale_out_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                         default=False,
@@ -303,20 +321,7 @@ def setup_parser():
     partition_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                              help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
 
-    ###############
-    # RUN COMMANDS
-    ###############
-    run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
-    run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
-                            help='The number of seconds to keep database connections alive before resetting them.',
-                            default=30)
-    run_parser.add_argument('--follower-reads', dest='follower_reads', action='store_true', default=False,
-                             help='Use the closest replica to serve fast, but slightly stale, read requests')
-    run_parser.add_argument('--city', dest='city', action='append',
-                            help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
-    run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
-                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
-                            default=.95)
+
 
     return parser
 
@@ -505,6 +510,7 @@ def run_load_generator(conn_string, read_percentage, connection_duration_in_seco
         movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
     RUNNING_THREADS = []
+    logging.info("running single region queries...") if use_single_region else logging.info("running multi-region queries...")
     for i in range(num_threads):
         t = threading.Thread(target=simulate_movr_load, args=(conn_string, use_single_region, city_list, movr_objects,
                                                     active_rides, read_percentage, follower_reads,

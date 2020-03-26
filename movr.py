@@ -219,7 +219,7 @@ class MovR:
         return queries_to_run
 
     def run_multi_region_transformations(self):
-        logging.info("applying schema changes to make this database multi-region (this may take a minute or two).")
+        logging.info("applying schema changes to make this database multi-region (this may take up to a minute).")
         queries_to_run = self.get_multi_region_transformations()
 
 
