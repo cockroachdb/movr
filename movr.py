@@ -62,7 +62,7 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: start_ride_helper(session, city, rider_id, vehicle_id))
 
-    
+
     def end_ride(self, city, ride_id):
         def end_ride_helper(session, city, ride_id):
             ride = session.query(Ride).filter_by(city=city, id=ride_id).first() if self.multi_region else session.query(Ride).filter_by(id=ride_id).first()
@@ -178,40 +178,56 @@ class MovR:
     # MULTI REGION TRANSFORMATIONS
     ################
 
-    def run_multi_region_transformations(self):
-        logging.info("applying schema changes to make this database multi-region (this may take a minute)")
-        queries_to_run = []
-        queries_to_run.append("ALTER TABLE users ALTER PRIMARY KEY USING COLUMNS (city, id)")
-        queries_to_run.append("ALTER TABLE rides ALTER PRIMARY KEY USING COLUMNS (city, id)")
-        queries_to_run.append("ALTER TABLE vehicle_location_histories ALTER PRIMARY KEY USING COLUMNS (city, ride_id, timestamp)")
-        queries_to_run.append("ALTER TABLE vehicles ALTER PRIMARY KEY USING COLUMNS (city, id)")
-        queries_to_run.append("ALTER TABLE user_promo_codes ALTER PRIMARY KEY USING COLUMNS (city, user_id, code)")
-
-        run_transaction(sessionmaker(bind=self.engine),
-                        lambda session: MovR.multi_query_helper(session, queries_to_run))
-
-        queries_to_run = []
-
-
-        # rides
-        queries_to_run.append("ALTER TABLE rides DROP CONSTRAINT fk_rider_id_ref_users")
-        queries_to_run.append("ALTER TABLE rides ADD CONSTRAINT fk_rider_id_ref_users_mr FOREIGN KEY (city, rider_id) REFERENCES users (city,id)")
-        queries_to_run.append("ALTER TABLE rides DROP CONSTRAINT fk_vehicle_id_ref_vehicles")
-        queries_to_run.append(
-            "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (vehicle_city, vehicle_id) REFERENCES vehicles (city,id)")
+    def get_multi_region_transformations(self):
+        queries_to_run = {"pk_alters": [], "fk_alters": []}
+        queries_to_run["pk_alters"].append("ALTER TABLE users ALTER PRIMARY KEY USING COLUMNS (city, id);")
+        queries_to_run["pk_alters"].append("ALTER TABLE rides ALTER PRIMARY KEY USING COLUMNS (city, id);")
+        queries_to_run["pk_alters"].append(
+            "ALTER TABLE vehicle_location_histories ALTER PRIMARY KEY USING COLUMNS (city, ride_id, timestamp);")
+        queries_to_run["pk_alters"].append("ALTER TABLE vehicles ALTER PRIMARY KEY USING COLUMNS (city, id);")
+        queries_to_run["pk_alters"].append("ALTER TABLE user_promo_codes ALTER PRIMARY KEY USING COLUMNS (city, user_id, code);")
 
         # vehicles
-        queries_to_run.append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users")
-        queries_to_run.append(
-            "ALTER TABLE vehicles ADD CONSTRAINT fk_owner_id_ref_users_mr FOREIGN KEY (city, owner_id) REFERENCES users (city,id)")
+        queries_to_run["fk_alters"].append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users;")
+        #foreign key requires an existing index on columns
+        queries_to_run["fk_alters"].append("CREATE INDEX ON vehicles (city, owner_id);")
+        queries_to_run["fk_alters"].append(
+            "ALTER TABLE vehicles ADD CONSTRAINT fk_owner_id_ref_users_mr FOREIGN KEY (city, owner_id) REFERENCES users (city,id);")
+
+        # rides
+        queries_to_run["fk_alters"].append("ALTER TABLE rides DROP CONSTRAINT fk_rider_id_ref_users;")
+        queries_to_run["fk_alters"].append("CREATE INDEX ON rides (city, rider_id);")
+        queries_to_run["fk_alters"].append(
+            "ALTER TABLE rides ADD CONSTRAINT fk_rider_id_ref_users_mr FOREIGN KEY (city, rider_id) REFERENCES users (city,id);")
+        queries_to_run["fk_alters"].append("ALTER TABLE rides DROP CONSTRAINT fk_vehicle_id_ref_vehicles;")
+        queries_to_run["fk_alters"].append("CREATE INDEX ON rides (vehicle_city, vehicle_id);")
+        queries_to_run["fk_alters"].append(
+            "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (vehicle_city, vehicle_id) REFERENCES vehicles (city,id);")
+
+
 
         # user_promo_codes
-        queries_to_run.append("ALTER TABLE user_promo_codes DROP CONSTRAINT fk_user_id_ref_users")
-        queries_to_run.append(
-            "ALTER TABLE user_promo_codes ADD CONSTRAINT fk_user_id_ref_users_mr FOREIGN KEY (city, user_id) REFERENCES users (city,id)")
+        queries_to_run["fk_alters"].append("ALTER TABLE user_promo_codes DROP CONSTRAINT fk_user_id_ref_users;")
+        queries_to_run["fk_alters"].append(
+            "ALTER TABLE user_promo_codes ADD CONSTRAINT fk_user_id_ref_users_mr FOREIGN KEY (city, user_id) REFERENCES users (city,id);")
+
+        return queries_to_run
+
+    def run_multi_region_transformations(self):
+        logging.info("applying schema changes to make this database multi-region (this may take a minute or two).")
+        queries_to_run = self.get_multi_region_transformations()
+
 
         run_transaction(sessionmaker(bind=self.engine),
-                        lambda session: MovR.multi_query_helper(session, queries_to_run))
+                        lambda session: MovR.multi_query_helper(session, queries_to_run["pk_alters"]))
+
+        # #@todo: this causes an FK issue for some reason
+        # run_transaction(sessionmaker(bind=self.engine),
+        #                 lambda session: MovR.multi_query_helper(session, queries_to_run["fk_alters"]))
+
+        for query in queries_to_run["fk_alters"]:
+            run_transaction(sessionmaker(bind=self.engine),
+                        lambda session: session.execute(query))
 
 
     ############

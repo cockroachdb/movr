@@ -255,6 +255,9 @@ def setup_parser():
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
     parser.add_argument('--single-region', dest='single_region', action='store_true', default=False,
                              help='Run MovR with single region schemas. Useful for showing an app that starts small and scales out.')
+
+
+
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
                         help='set this if you want to print all executed SQL statements')
 
@@ -277,17 +280,27 @@ def setup_parser():
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
 
+    ###################
+    #regional_scale_out
+    ###################
+
+    scale_out_parser = subparsers.add_parser('regional_scale_out', help="update schema to support multi-region deployments")
+
+    scale_out_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
+                        default=False,
+                        help='See commands to transform from single region to multi-region')
+
     ####################
     # PARTITION COMMANDS
     ####################
-    load_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise license to use this feature (https://cockroa.ch/2BoAlgB)")
+    partition_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise license to use this feature (https://cockroa.ch/2BoAlgB)")
 
-    load_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
+    partition_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
                              help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
-    load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
+    partition_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
                              help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
                                   'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
-    load_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
+    partition_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                              help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
 
     ###############
@@ -549,11 +562,33 @@ if __name__ == '__main__':
     conn_string = set_query_parameter(conn_string, "application_name", args.app_name)
 
 
+
+
     if args.subparser_name=='load':
 
         run_data_loader(conn_string, cities= get_cities(args.city), num_users= args.num_users, num_rides= args.num_rides, num_vehicles= args.num_vehicles, num_histories= args.num_histories,
                         num_promo_codes= args.num_promo_codes, num_threads= args.num_threads, use_single_region=args.single_region,
                         skip_reload_tables= args.skip_reload_tables, echo_sql= args.echo_sql)
+
+    elif args.subparser_name == "regional_scale_out":
+        if args.preview_queries:
+            with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
+
+                queries = movr.get_multi_region_transformations()
+                print("DDL to convert a single region database to multi-region")
+
+                print("===primary key alters===")
+                for query in queries["pk_alters"]:
+                    print(query)
+
+                print("===foreign key alters===")
+                for query in queries["fk_alters"]:
+                    print(query)
+            sys.exit(0)
+        else:
+            with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
+                movr.run_multi_region_transformations()
+
 
     elif args.subparser_name=="partition":
         # population partitions
