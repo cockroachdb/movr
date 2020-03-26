@@ -15,7 +15,7 @@ class MovR:
     def __exit__(self, exc_type, exc_value, traceback):
         self.session.close()
 
-    def __init__(self, conn_string, init_tables = False, single_region = False, echo = False):
+    def __init__(self, conn_string, init_tables = False, multi_region = False, echo = False):
 
 
         self.engine = create_engine(conn_string, convert_unicode=True, echo=echo)
@@ -25,7 +25,7 @@ class MovR:
             logging.info("initializing tables")
             Base.metadata.drop_all(bind=self.engine)
             Base.metadata.create_all(bind=self.engine)
-            if not single_region:
+            if multi_region:
                 self.run_multi_region_transformations()
 
 
@@ -177,7 +177,7 @@ class MovR:
     ################
 
     def run_multi_region_transformations(self):
-        logging.info("applying schema changes to make this database multi-region")
+        logging.info("applying schema changes to make this database multi-region (this may take a minute)")
         queries_to_run = []
         queries_to_run.append("ALTER TABLE users ALTER PRIMARY KEY USING COLUMNS (city, id)")
         queries_to_run.append("ALTER TABLE rides ALTER PRIMARY KEY USING COLUMNS (city, id)")

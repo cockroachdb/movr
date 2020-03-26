@@ -428,7 +428,7 @@ def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num
 
     logging.info("Loading single region MovR") if use_single_region else logging.info("Loading multi region MovR")
 
-    with MovR(conn_string, init_tables=(not skip_reload_tables), single_region = use_single_region, echo=echo_sql) as movr:
+    with MovR(conn_string, init_tables=(not skip_reload_tables), multi_region = not use_single_region, echo=echo_sql) as movr:
 
         logging.info("loading cities %s", cities)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
@@ -548,9 +548,10 @@ if __name__ == '__main__':
 
 
     if args.subparser_name=='load':
-        run_data_loader(conn_string, get_cities(args.city), args.num_users, args.num_rides, args.num_vehicles, args.num_histories,
-                        args.num_promo_codes, args.num_threads, args.single_region,
-                        args.skip_reload_tables, args.echo_sql)
+
+        run_data_loader(conn_string, cities= get_cities(args.city), num_users= args.num_users, num_rides= args.num_rides, num_vehicles= args.num_vehicles, num_histories= args.num_histories,
+                        num_promo_codes= args.num_promo_codes, num_threads= args.num_threads, use_single_region=args.single_region,
+                        skip_reload_tables= args.skip_reload_tables, echo_sql= args.echo_sql)
     elif args.subparser_name=="partition":
         # population partitions
         partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
