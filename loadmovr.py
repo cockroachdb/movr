@@ -418,16 +418,17 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
+#@todo: switch to named arguments
 def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
-                    skip_reload_tables, echo_sql):
+                    skip_reload_tables, use_single_region, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
 
+    logging.info("Loading single region MovR") if use_single_region else logging.info("Loading multi region MovR")
 
-
-    with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
+    with MovR(conn_string, init_tables=(not skip_reload_tables), single_region = use_single_region, echo=echo_sql) as movr:
 
         logging.info("loading cities %s", cities)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
@@ -547,7 +548,8 @@ if __name__ == '__main__':
 
 
     if args.subparser_name=='load':
-        run_data_loader(conn_string, get_cities(args.city), args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
+        run_data_loader(conn_string, get_cities(args.city), args.num_users, args.num_rides, args.num_vehicles, args.num_histories,
+                        args.num_promo_codes, args.num_threads, args.single_region,
                         args.skip_reload_tables, args.echo_sql)
     elif args.subparser_name=="partition":
         # population partitions
