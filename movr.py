@@ -202,6 +202,7 @@ class MovR:
         #foreign key requires an existing index on columns
         queries_to_run["fk_alters"].append("CREATE INDEX ON vehicles (city, owner_id);")
         queries_to_run["fk_alters"].append("DROP INDEX vehicles_auto_index_fk_owner_id_ref_users;")
+        queries_to_run["fk_alters"].append("DROP INDEX vehicles_city_idx;")
         queries_to_run["fk_alters"].append(
             "ALTER TABLE vehicles ADD CONSTRAINT fk_owner_id_ref_users_mr FOREIGN KEY (city, owner_id) REFERENCES users (city,id);")
 

@@ -74,6 +74,8 @@ class Vehicle(Base):
     ext = Column(JSONB)
     __table_args__ = (ForeignKeyConstraint([owner_id], ["users.id"], name='fk_owner_id_ref_users'),)
 
+    Index('vehicles_city_idx', city)
+
     def __repr__(self):
         return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 
