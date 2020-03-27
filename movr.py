@@ -197,6 +197,8 @@ class MovR:
         queries_to_run["pk_alters"].append("ALTER TABLE vehicles ALTER PRIMARY KEY USING COLUMNS (city, id);")
         queries_to_run["pk_alters"].append("ALTER TABLE user_promo_codes ALTER PRIMARY KEY USING COLUMNS (city, user_id, code);")
 
+        # users
+        queries_to_run["fk_alters"].append("DROP INDEX users_city_idx;")
         # vehicles
         queries_to_run["fk_alters"].append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users;")
         #foreign key requires an existing index on columns

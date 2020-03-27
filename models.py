@@ -26,6 +26,8 @@ class User(Base):
     credit_card = Column(String)
     #promo_codes = relationship("UserPromoCode")
 
+    Index('users_city_idx', city)
+
     def __repr__(self):
         return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
 
