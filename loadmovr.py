@@ -342,7 +342,6 @@ def add_rides(engine, num_rides, city):
             start_time = datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 30))
             rides.append(Ride(id=MovRGenerator.generate_uuid(),
                               city=city,
-                              vehicle_city=city,
                               rider_id=random.choice(users).id,
                               vehicle_id=random.choice(vehicles).id,
                               start_time=start_time,

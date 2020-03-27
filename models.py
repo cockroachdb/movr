@@ -34,11 +34,6 @@ class Ride(Base):
     __tablename__ = 'rides'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
     city = Column(String, nullable=False)
-
-    # @todo: annoying workaround for https://github.com/cockroachdb/cockroach/issues/23580
-    # @todo: ideally we would not include this in the single region configuration,
-    # but adding this after the fact is tricky because we can't use computed columns or sub-expresssions as default
-    vehicle_city = Column(String, CheckConstraint('vehicle_city=city'))
     rider_id = Column(UUID)
     vehicle_id = Column(UUID)
     start_address = Column(String)

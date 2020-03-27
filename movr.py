@@ -55,7 +55,7 @@ class MovR:
                         UserPromoCode).filter_by(user_id=rider_id,code=upc.code)
                     code_to_update.update({'usage_count': upc.usage_count+1})
 
-            r = Ride(city=city, vehicle_city=city, id=MovRGenerator.generate_uuid(),
+            r = Ride(city=city, id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,
                      start_address=v.current_location)
 
@@ -206,9 +206,9 @@ class MovR:
         queries_to_run["fk_alters"].append(
             "ALTER TABLE rides ADD CONSTRAINT fk_rider_id_ref_users_mr FOREIGN KEY (city, rider_id) REFERENCES users (city,id);")
         queries_to_run["fk_alters"].append("ALTER TABLE rides DROP CONSTRAINT fk_vehicle_id_ref_vehicles;")
-        queries_to_run["fk_alters"].append("CREATE INDEX ON rides (vehicle_city, vehicle_id);")
+        queries_to_run["fk_alters"].append("CREATE INDEX ON rides (city, vehicle_id);")
         queries_to_run["fk_alters"].append(
-            "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (vehicle_city, vehicle_id) REFERENCES vehicles (city,id);")
+            "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (city, vehicle_id) REFERENCES vehicles (city,id);")
         queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_rider_id_ref_users;")
         queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_vehicle_id_ref_vehicles;")
 
@@ -279,7 +279,7 @@ class MovR:
                 queries_to_run.setdefault("table_zones",[]).append(zone_sql)
 
         for index in [{"index_name": "rides_city_rider_id_idx", "prefix_name": "city", "table": "rides"},
-                      {"index_name": "rides_vehicle_city_vehicle_id_idx", "prefix_name": "vehicle_city",
+                      {"index_name": "rides_city_vehicle_id_idx", "prefix_name": "city",
                        "table": "rides"},
                       {"index_name": "vehicles_city_owner_id_idx", "prefix_name": "city",
                        "table": "vehicles"}]:
