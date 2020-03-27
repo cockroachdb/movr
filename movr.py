@@ -196,6 +196,7 @@ class MovR:
         queries_to_run["fk_alters"].append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users;")
         #foreign key requires an existing index on columns
         queries_to_run["fk_alters"].append("CREATE INDEX ON vehicles (city, owner_id);")
+        queries_to_run["fk_alters"].append("DROP INDEX vehicles_auto_index_fk_owner_id_ref_users;")
         queries_to_run["fk_alters"].append(
             "ALTER TABLE vehicles ADD CONSTRAINT fk_owner_id_ref_users_mr FOREIGN KEY (city, owner_id) REFERENCES users (city,id);")
 
@@ -208,9 +209,10 @@ class MovR:
         queries_to_run["fk_alters"].append("CREATE INDEX ON rides (vehicle_city, vehicle_id);")
         queries_to_run["fk_alters"].append(
             "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (vehicle_city, vehicle_id) REFERENCES vehicles (city,id);")
+        queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_rider_id_ref_users;")
+        queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_vehicle_id_ref_vehicles;")
 
-
-
+        # @todo: remove single region index
         # user_promo_codes
         queries_to_run["fk_alters"].append("ALTER TABLE user_promo_codes DROP CONSTRAINT fk_user_id_ref_users;")
         queries_to_run["fk_alters"].append(
@@ -276,10 +278,10 @@ class MovR:
                            zone_map[partition_name] + "]';"
                 queries_to_run.setdefault("table_zones",[]).append(zone_sql)
 
-        for index in [{"index_name": "rides_auto_index_fk_city_ref_users", "prefix_name": "city", "table": "rides"},
-                      {"index_name": "rides_auto_index_fk_vehicle_city_ref_vehicles", "prefix_name": "vehicle_city",
+        for index in [{"index_name": "rides_city_rider_id_idx", "prefix_name": "city", "table": "rides"},
+                      {"index_name": "rides_vehicle_city_vehicle_id_idx", "prefix_name": "vehicle_city",
                        "table": "rides"},
-                      {"index_name": "vehicles_auto_index_fk_city_ref_users", "prefix_name": "city",
+                      {"index_name": "vehicles_city_owner_id_idx", "prefix_name": "city",
                        "table": "vehicles"}]:
             partition_string = create_partition_string(index_name=index["index_name"])
             partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index[
