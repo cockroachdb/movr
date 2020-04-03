@@ -20,6 +20,8 @@ RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
 DEFAULT_READ_PERCENTAGE = .95
 
+#@todo: add checks for multi-region operations on single region schemas.
+
 ACTION_ADD_VEHICLE = "add vehicle"
 ACTION_GET_VEHICLES = "get vehicles"
 ACTION_UPDATE_RIDE_LOC = "log ride location"
@@ -86,13 +88,13 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
 # Generates evenly distributed load among the provided cities
 
 
-def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql = False):
+def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql = False):
 
     datagen = Faker()
     while True:
         logging.debug("creating a new connection to %s, which will reset in %d seconds", conn_string, connection_duration_in_seconds)
         try:
-            with MovR(conn_string, echo=echo_sql) as movr:
+            with MovR(conn_string, multi_region= use_multi_region, echo=echo_sql) as movr:
                 timeout = time.time() + connection_duration_in_seconds #refresh connections so load can balance among cluster nodes even if the cluster size changes
                 while True:
 
@@ -252,6 +254,9 @@ def setup_parser():
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
                         help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
 
+
+
+
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
                         help='set this if you want to print all executed SQL statements')
 
@@ -259,6 +264,8 @@ def setup_parser():
     # LOAD COMMANDS
     ###############
     load_parser = subparsers.add_parser('load', help="load movr data into a database")
+    load_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
+                        help='Load MovR with multi-region schemas. Useful for showing an app built from day-one for a global deployment. You can convert a single-region MovR to multi-region one using the "configure-multi-region" command')
     load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
                              help='The number of random users to add to the dataset')
     load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
@@ -274,33 +281,47 @@ def setup_parser():
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
 
-    ####################
-    # PARTITION COMMANDS
-    ####################
-    load_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise license to use this feature (https://cockroa.ch/2BoAlgB)")
-
-    load_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
-                             help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
-    load_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
-                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
-                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
-    load_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
-                             help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
-
     ###############
     # RUN COMMANDS
     ###############
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
+    run_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
+                            help='Run MovR with single-region queries that use composite primary keys. Requires multi-region schema options.')
     run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
                             help='The number of seconds to keep database connections alive before resetting them.',
                             default=30)
     run_parser.add_argument('--follower-reads', dest='follower_reads', action='store_true', default=False,
-                             help='Use the closest replica to serve fast, but slightly stale, read requests')
+                            help='Use the closest replica to serve fast, but slightly stale, read requests')
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
     run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
                             help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.95)
+
+    ###################
+    #configure_multi_region
+    ###################
+
+    scale_out_parser = subparsers.add_parser('configure-multi-region', help="perform online update to single-region schema to enable multi-region deployments")
+
+    scale_out_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
+                        default=False,
+                        help='See commands to transform from single region to multi-region')
+
+    ####################
+    # PARTITION COMMANDS
+    ####################
+    partition_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise license to use this feature (https://cockroa.ch/2BoAlgB)")
+
+    partition_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
+                             help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
+    partition_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
+                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
+                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
+    partition_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
+                             help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
+
+
 
     return parser
 
@@ -321,7 +342,6 @@ def add_rides(engine, num_rides, city):
             start_time = datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 30))
             rides.append(Ride(id=MovRGenerator.generate_uuid(),
                               city=city,
-                              vehicle_city=city,
                               rider_id=random.choice(users).id,
                               vehicle_id=random.choice(vehicles).id,
                               start_time=start_time,
@@ -418,15 +438,15 @@ def add_vehicles(engine, num_vehicles, city):
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
 def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
-                    skip_reload_tables, echo_sql):
+                    skip_reload_tables, use_multi_region, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
 
+    logging.info("Loading single region MovR") if not use_multi_region else logging.info("Loading multi region MovR")
 
-
-    with MovR(conn_string, init_tables=(not skip_reload_tables), echo=echo_sql) as movr:
+    with MovR(conn_string, init_tables=(not skip_reload_tables), multi_region = use_multi_region, echo=echo_sql) as movr:
 
         logging.info("loading cities %s", cities)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
@@ -467,7 +487,7 @@ def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num
     logging.info("populated %s cities in %f seconds", original_city_count, duration)
 
 # generate fake load for objects within the provided city list
-def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, follower_reads, echo_sql, num_threads):
+def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, use_multi_region, follower_reads, echo_sql, num_threads):
     if read_percentage < 0 or read_percentage > 1:
         raise ValueError("read percentage must be between 0 and 1")
 
@@ -477,7 +497,7 @@ def run_load_generator(conn_string, read_percentage, connection_duration_in_seco
     movr_objects = { "local": {}, "global": {}}
 
     logging.info("warming up....")
-    with MovR(conn_string, echo=echo_sql) as movr:
+    with MovR(conn_string, multi_region=  use_multi_region, echo=echo_sql) as movr:
         active_rides = []
         for city in city_list:
             movr_objects["local"][city] = {"users": movr.get_users(city, follower_reads), "vehicles": movr.get_vehicles(city, follower_reads)}
@@ -489,9 +509,11 @@ def run_load_generator(conn_string, read_percentage, connection_duration_in_seco
         movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
     RUNNING_THREADS = []
+    logging.info("running single region queries...") if not use_multi_region else logging.info("running multi-region queries...")
     for i in range(num_threads):
-        t = threading.Thread(target=simulate_movr_load, args=(conn_string, city_list, movr_objects,
-                                                    active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql ))
+        t = threading.Thread(target=simulate_movr_load, args=(conn_string, use_multi_region, city_list, movr_objects,
+                                                    active_rides, read_percentage, follower_reads,
+                                                              connection_duration_in_seconds, echo_sql ))
         t.start()
         RUNNING_THREADS.append(t)
 
@@ -545,10 +567,36 @@ if __name__ == '__main__':
     conn_string = set_query_parameter(conn_string, "application_name", args.app_name)
 
 
+
+
     if args.subparser_name=='load':
-        run_data_loader(conn_string, get_cities(args.city), args.num_users, args.num_rides, args.num_vehicles, args.num_histories, args.num_promo_codes, args.num_threads,
-                        args.skip_reload_tables, args.echo_sql)
+
+        run_data_loader(conn_string, cities= get_cities(args.city), num_users= args.num_users, num_rides= args.num_rides, num_vehicles= args.num_vehicles, num_histories= args.num_histories,
+                        num_promo_codes= args.num_promo_codes, num_threads= args.num_threads, use_multi_region=args.multi_region,
+                        skip_reload_tables= args.skip_reload_tables, echo_sql= args.echo_sql)
+
+    elif args.subparser_name == "configure-multi-region":
+        if args.preview_queries:
+            with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
+
+                queries = movr.get_multi_region_transformations()
+                print("DDL to convert a single region database to multi-region")
+
+                print("===primary key alters===")
+                for query in queries["pk_alters"]:
+                    print(query)
+
+                print("===foreign key alters===")
+                for query in queries["fk_alters"]:
+                    print(query)
+            sys.exit(0)
+        else:
+            with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
+                movr.run_multi_region_transformations()
+
+
     elif args.subparser_name=="partition":
+        #@todo: ruggedize this so it doesnt break when run on a single region cluster. look at pg metadata
         # population partitions
         partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
         partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
@@ -572,7 +620,7 @@ if __name__ == '__main__':
 
 
 
-        with MovR(conn_string, init_tables=False, echo=args.echo_sql) as movr:
+        with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
             if args.preview_queries:
                 queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
                 print("queries to geo-partition the database")
@@ -606,9 +654,14 @@ if __name__ == '__main__':
                 print("done.")
 
     elif args.subparser_name == "run":
-        run_load_generator(conn_string, args.read_percentage, args.connection_duration_in_seconds, get_cities(args.city), args.follower_reads, args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, read_percentage= args.read_percentage, connection_duration_in_seconds= args.connection_duration_in_seconds,
+                           city_list= get_cities(args.city), use_multi_region=args.multi_region, follower_reads= args.follower_reads, echo_sql= args.echo_sql, num_threads= args.num_threads)
     else:
-        run_load_generator(conn_string, DEFAULT_READ_PERCENTAGE, args.connection_duration_in_seconds, get_cities(None), args.follower_reads, args.echo_sql, args.num_threads)
+        run_load_generator(conn_string, read_percentage= DEFAULT_READ_PERCENTAGE,
+                           connection_duration_in_seconds= 60, city_list= get_cities(None),
+                           use_multi_region=False,
+                           follower_reads= False, echo_sql= args.echo_sql, num_threads= args.num_threads)
+
 
 
 
