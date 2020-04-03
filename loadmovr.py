@@ -586,7 +586,7 @@ if __name__ == '__main__':
                 for query in queries["pk_alters"]:
                     print(query)
 
-                print("===foreign key and index alters===")
+                print("===foreign key alters and index drops ===")
                 for query in queries["fk_alters"]:
                     print(query)
             sys.exit(0)
