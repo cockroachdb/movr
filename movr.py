@@ -230,7 +230,7 @@ class MovR:
             "ALTER TABLE user_promo_codes ADD CONSTRAINT fk_user_id_ref_users_mr FOREIGN KEY (city, user_id) REFERENCES users (city,id);")
 
 
-        # drop all the old pks that became unix indexes
+        # drop all the old pks that became unique indexes
         queries_to_run["fk_alters"].append("DROP INDEX users_id_key CASCADE;")
         queries_to_run["fk_alters"].append("DROP INDEX user_promo_codes_user_id_code_key CASCADE;")
         queries_to_run["fk_alters"].append("DROP INDEX rides_id_key CASCADE;")
