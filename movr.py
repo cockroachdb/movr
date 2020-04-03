@@ -220,7 +220,6 @@ class MovR:
         queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_rider_id_ref_users;")
         queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_vehicle_id_ref_vehicles;")
 
-        # @todo: remove single region index
         # user_promo_codes
         queries_to_run["fk_alters"].append("ALTER TABLE user_promo_codes DROP CONSTRAINT fk_user_id_ref_users;")
         queries_to_run["fk_alters"].append(

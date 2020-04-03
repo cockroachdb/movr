@@ -2,7 +2,6 @@
 
 MovR is a fictional ride sharing company.
 
-
 ## Getting started
 First, [download CockroachDB](https://www.cockroachlabs.com/docs/stable/install-cockroachdb.html) and start a local cluster with `cockroach start --insecure --host localhost --background`
 
@@ -13,7 +12,7 @@ Generating fake data: `docker run -it --rm cockroachdb/movr --url "postgres://ro
 Generating load for cities: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" --num-threads 10 run --city "new york" --city "boston"`
 
 ## Multi-region configuration
-MovR defaults to a single-region schema and single-region queries. You can also run MovR in a multi-region configuration.
+MovR defaults to a single-region schema and single-region queries. You can also run MovR in a multi-region configuration. *This requires CockroachDB 20.1-beta.4 or later.*
 
 Generating multi-region data: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --multi-region`
 Running multi-region queries: `docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" run --multi-region`

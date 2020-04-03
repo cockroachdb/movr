@@ -265,7 +265,7 @@ def setup_parser():
     ###############
     load_parser = subparsers.add_parser('load', help="load movr data into a database")
     load_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
-                        help='Load MovR with multi region schemas. Useful for showing an app build from day-one for a global deployment. You can convert a single region MovR to multi-region one using the "configure-multi-region" command')
+                        help='Load MovR with multi-region schemas. Useful for showing an app built from day-one for a global deployment. You can convert a single-region MovR to multi-region one using the "configure-multi-region" command')
     load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
                              help='The number of random users to add to the dataset')
     load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
@@ -286,7 +286,7 @@ def setup_parser():
     ###############
     run_parser = subparsers.add_parser('run', help="generate fake traffic for the movr database")
     run_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
-                            help='Run MovR with single region queries that use composite primary keys. Requires multi-region schema options.')
+                            help='Run MovR with single-region queries that use composite primary keys. Requires multi-region schema options.')
     run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
                             help='The number of seconds to keep database connections alive before resetting them.',
                             default=30)
