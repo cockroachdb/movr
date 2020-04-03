@@ -199,8 +199,11 @@ class MovR:
 
         # users
         queries_to_run["fk_alters"].append("DROP INDEX users_city_idx;")
+
         # vehicles
         queries_to_run["fk_alters"].append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users;")
+
+
         #foreign key requires an existing index on columns
         queries_to_run["fk_alters"].append("CREATE INDEX ON vehicles (city, owner_id);")
         queries_to_run["fk_alters"].append("DROP INDEX vehicles_auto_index_fk_owner_id_ref_users;")
@@ -220,10 +223,19 @@ class MovR:
         queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_rider_id_ref_users;")
         queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_vehicle_id_ref_vehicles;")
 
+
         # user_promo_codes
         queries_to_run["fk_alters"].append("ALTER TABLE user_promo_codes DROP CONSTRAINT fk_user_id_ref_users;")
         queries_to_run["fk_alters"].append(
             "ALTER TABLE user_promo_codes ADD CONSTRAINT fk_user_id_ref_users_mr FOREIGN KEY (city, user_id) REFERENCES users (city,id);")
+
+
+        # drop all the old pks that became unique indexes
+        queries_to_run["fk_alters"].append("DROP INDEX users_id_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX user_promo_codes_user_id_code_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX rides_id_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX vehicles_id_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX vehicle_location_histories_ride_id_timestamp_key CASCADE;")
 
         return queries_to_run
 
@@ -233,7 +245,7 @@ class MovR:
 
         logging.info("altering primary keys...")
         self.run_queries_in_separate_transactions(queries_to_run["pk_alters"])
-        logging.info("altering foreign keys...")
+        logging.info("altering foreign keys and droping old indexes...")
         self.run_queries_in_separate_transactions(queries_to_run["fk_alters"])
         logging.info("done.")
 
