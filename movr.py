@@ -245,7 +245,7 @@ class MovR:
 
         logging.info("altering primary keys...")
         self.run_queries_in_separate_transactions(queries_to_run["pk_alters"])
-        logging.info("altering foreign keys and droping old indexes...")
+        logging.info("altering foreign keys and dropping old indexes...")
         self.run_queries_in_separate_transactions(queries_to_run["fk_alters"])
         logging.info("done.")
 
