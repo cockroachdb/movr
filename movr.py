@@ -198,16 +198,16 @@ class MovR:
         queries_to_run["pk_alters"].append("ALTER TABLE user_promo_codes ALTER PRIMARY KEY USING COLUMNS (city, user_id, code);")
 
         # users
-        queries_to_run["fk_alters"].append("DROP INDEX users_city_idx;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS users_city_idx;")
 
         # vehicles
         queries_to_run["fk_alters"].append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users;")
 
 
-        #foreign key requires an existing index on columns
+        # for v20.1 and lower, foreign key requires an existing index on columns
         queries_to_run["fk_alters"].append("CREATE INDEX ON vehicles (city, owner_id);")
-        queries_to_run["fk_alters"].append("DROP INDEX vehicles_auto_index_fk_owner_id_ref_users;")
-        queries_to_run["fk_alters"].append("DROP INDEX vehicles_city_idx;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicles_auto_index_fk_owner_id_ref_users;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicles_city_idx;")
         queries_to_run["fk_alters"].append(
             "ALTER TABLE vehicles ADD CONSTRAINT fk_owner_id_ref_users_mr FOREIGN KEY (city, owner_id) REFERENCES users (city,id);")
 
@@ -220,8 +220,8 @@ class MovR:
         queries_to_run["fk_alters"].append("CREATE INDEX ON rides (city, vehicle_id);")
         queries_to_run["fk_alters"].append(
             "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (city, vehicle_id) REFERENCES vehicles (city,id);")
-        queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_rider_id_ref_users;")
-        queries_to_run["fk_alters"].append("DROP INDEX rides_auto_index_fk_vehicle_id_ref_vehicles;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS rides_auto_index_fk_rider_id_ref_users;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS rides_auto_index_fk_vehicle_id_ref_vehicles;")
 
 
         # user_promo_codes
@@ -231,11 +231,11 @@ class MovR:
 
 
         # drop all the old pks that became unique indexes
-        queries_to_run["fk_alters"].append("DROP INDEX users_id_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX user_promo_codes_user_id_code_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX rides_id_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX vehicles_id_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX vehicle_location_histories_ride_id_timestamp_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS users_id_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS user_promo_codes_user_id_code_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS rides_id_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicles_id_key CASCADE;")
+        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicle_location_histories_ride_id_timestamp_key CASCADE;")
 
         return queries_to_run
 
