@@ -580,12 +580,12 @@ if __name__ == '__main__':
                 queries = movr.get_multi_region_transformations()
                 print("DDL to convert a single region database to multi-region")
 
-                print("===primary key alters===")
-                for query in queries["pk_alters"]:
+                print("===database regions===")
+                for query in queries["database_regions"]:
                     print(query)
 
-                print("===foreign key alters and index drops ===")
-                for query in queries["fk_alters"]:
+                print("===table localities ===")
+                for query in queries["table_localities"]:
                     print(query)
             sys.exit(0)
         else:

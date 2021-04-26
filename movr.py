@@ -37,14 +37,14 @@ class MovR:
     # MAIN MOVR API
     #################
 
-    def start_ride(self, city, rider_id, vehicle_id):
+    def start_ride(self, rider_id, vehicle_id):
 
-        def start_ride_helper(session, city, rider_id, vehicle_id):
-            vehicle = session.query(Vehicle).filter_by(city=city, id=vehicle_id) if self.multi_region else session.query(Vehicle).filter_by(id=vehicle_id)
+        def start_ride_helper(session, rider_id, vehicle_id):
+            vehicle = session.query(Vehicle).filter_by(id=vehicle_id) if self.multi_region else session.query(Vehicle).filter_by(id=vehicle_id)
             vehicle.update({'status': 'in_use' })
             v = vehicle.first()
             # get promo codes associated with this user's account
-            upcs = session.query(UserPromoCode).filter_by(city=city, user_id=rider_id).all() if self.multi_region else session.query(UserPromoCode).filter_by(user_id=rider_id).all()
+            upcs = session.query(UserPromoCode).filter_by(user_id=rider_id).all() if self.multi_region else session.query(UserPromoCode).filter_by(user_id=rider_id).all()
 
             # determine which codes are valid
             for upc in upcs:
@@ -55,95 +55,95 @@ class MovR:
                         UserPromoCode).filter_by(user_id=rider_id,code=upc.code)
                     code_to_update.update({'usage_count': upc.usage_count+1})
 
-            r = Ride(city=city, id=MovRGenerator.generate_uuid(),
+            r = Ride(id=MovRGenerator.generate_uuid(),
                      rider_id=rider_id, vehicle_id=vehicle_id,
                      start_address=v.current_location)
 
             session.add(r)
-            return {'city': r.city, 'id': r.id}
+            return {'id': r.id}
 
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: start_ride_helper(session, city, rider_id, vehicle_id))
 
 
-    def end_ride(self, city, ride_id):
-        def end_ride_helper(session, city, ride_id):
-            ride = session.query(Ride).filter_by(city=city, id=ride_id) if self.multi_region else session.query(Ride).filter_by(id=ride_id)
+    def end_ride(self, ride_id):
+        def end_ride_helper(session, ride_id):
+            ride = session.query(Ride).filter_by(id=ride_id) if self.multi_region else session.query(Ride).filter_by(id=ride_id)
             r = ride.first()
-            vehicle = session.query(Vehicle).filter_by(city=city, id=r.vehicle_id) if self.multi_region else session.query(Vehicle).filter_by(id=r.vehicle_id)
+            vehicle = session.query(Vehicle).filter_by(id=r.vehicle_id) if self.multi_region else session.query(Vehicle).filter_by(id=r.vehicle_id)
             vehicle.update({'status': 'available'})
             v = vehicle.first()
             ride.update({'end_address':v.current_location, 'revenue': MovRGenerator.generate_revenue(),
                          'end_time': datetime.datetime.now()})
 
 
-        run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, city, ride_id))
+        run_transaction(sessionmaker(bind=self.engine), lambda session: end_ride_helper(session, ride_id))
 
-    def update_ride_location(self, city, ride_id, lat, long):
-        def update_ride_location_helper(session, city, ride_id, lat, long):
-            h = VehicleLocationHistory(city = city, ride_id = ride_id, lat = lat, long = long)
+    def update_ride_location(self, ride_id, lat, long):
+        def update_ride_location_helper(session, ride_id, lat, long):
+            h = VehicleLocationHistory(ride_id = ride_id, lat = lat, long = long)
             session.add(h)
 
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: update_ride_location_helper(session, city, ride_id, lat, long))
 
-    def add_user(self, city, name, address, credit_card_number):
-        def add_user_helper(session, city, name, address, credit_card_number):
-            u = User(city=city, id=MovRGenerator.generate_uuid(), name=name,
+    def add_user(self, name, address, credit_card_number):
+        def add_user_helper(session, name, address, credit_card_number):
+            u = User(id=MovRGenerator.generate_uuid(), name=name,
                      address=address, credit_card=credit_card_number)
             session.add(u)
-            return {'city': u.city, 'id': u.id}
+            return {'id': u.id}
         return run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: add_user_helper(session, city, name, address, credit_card_number))
+                               lambda session: add_user_helper(session, name, address, credit_card_number))
 
-    def add_vehicle(self, city, owner_id, current_location, type, vehicle_metadata, status):
-        def add_vehicle_helper(session, city, owner_id, current_location, type, vehicle_metadata, status):
+    def add_vehicle(self, owner_id, current_location, type, vehicle_metadata, status):
+        def add_vehicle_helper(session, owner_id, current_location, type, vehicle_metadata, status):
             vehicle_type = type
 
             vehicle = Vehicle(id=MovRGenerator.generate_uuid(), type=vehicle_type,
-                              city=city, owner_id=owner_id, current_location = current_location,
+                              owner_id=owner_id, current_location = current_location,
                               status=status,
                               ext=vehicle_metadata)
 
             session.add(vehicle)
-            return {'city': vehicle.city, 'id': vehicle.id}
+            return {'id': vehicle.id}
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: add_vehicle_helper(session,
-                                                                  city, owner_id, current_location, type,
+                                                                  owner_id, current_location, type,
                                                                   vehicle_metadata, status))
 
-    def get_users(self, city, follower_reads=False, limit=None):
-        def get_users_helper(session, city, follower_reads, limit=None):
+    def get_users(self, follower_reads=False, limit=None):
+        def get_users_helper(session, follower_reads, limit=None):
             if follower_reads:
                 session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
-            users = session.query(User).filter_by(city=city).limit(limit).all()
-            return list(map(lambda user: {'city': user.city, 'id': user.id}, users))
-        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_users_helper(session, city, follower_reads, limit))
+            users = session.query(User).limit(limit).all()
+            return list(map(lambda user: {'id': user.id}, users))
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_users_helper(session, follower_reads, limit))
 
-    def get_vehicles(self, city, follower_reads=False, limit=None):
+    def get_vehicles(self, follower_reads=False, limit=None):
 
-            def get_vehicles_helper(session, city, follower_reads, limit=None):
+            def get_vehicles_helper(session, follower_reads, limit=None):
                 if follower_reads:
                     session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
-                vehicles = session.query(Vehicle).filter_by(city=city).limit(limit).all()
-                return list(map(lambda vehicle: {'city': vehicle.city, 'id': vehicle.id}, vehicles))
+                vehicles = session.query(Vehicle).limit(limit).all()
+                return list(map(lambda vehicle: {'id': vehicle.id}, vehicles))
 
-            return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, city, follower_reads, limit))
+            return run_transaction(sessionmaker(bind=self.engine), lambda session: get_vehicles_helper(session, follower_reads, limit))
 
-    def get_active_rides(self, city, follower_reads=False, limit=None):
-        def get_active_rides_helper(session, city, follower_reads, limit=None):
+    def get_active_rides(self, follower_reads=False, limit=None):
+        def get_active_rides_helper(session, follower_reads, limit=None):
             if follower_reads:
-                session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
-            rides = session.query(Ride).filter_by(city=city, end_time=None).limit(limit).all()
-            return list(map(lambda ride: {'city': city, 'id': ride.id}, rides))
+                session.execute(text('SET TRANSACTION AS OF SYSTEM TIME follower_read_timestamp()'))
+            rides = session.query(Ride).filter_by(end_time=None).limit(limit).all()
+            return list(map(lambda ride: {'id': ride.id}, rides))
 
         return run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: get_active_rides_helper(session, city, follower_reads, limit))
+                               lambda session: get_active_rides_helper(session, follower_reads, limit))
 
     def get_promo_codes(self, follower_reads=False, limit=None):
         def get_promo_codes_helper(session, follower_reads, limit=None):
             if follower_reads:
-                session.execute(text('SET TRANSACTION AS OF SYSTEM TIME experimental_follower_read_timestamp()'))
+                session.execute(text('SET TRANSACTION AS OF SYSTEM TIME follower_read_timestamp()'))
             pcs = session.query(PromoCode).limit(limit).all()
             return list(map(lambda pc: pc.code, pcs))
 
@@ -187,174 +187,29 @@ class MovR:
     ################
 
     def get_multi_region_transformations(self):
-        queries_to_run = {"pk_alters": [], "fk_alters": []}
-        queries_to_run["pk_alters"].append("ALTER TABLE users ALTER PRIMARY KEY USING COLUMNS (city, id);")
-        queries_to_run["pk_alters"].append("ALTER TABLE rides ALTER PRIMARY KEY USING COLUMNS (city, id);")
-        queries_to_run["pk_alters"].append(
-            "ALTER TABLE vehicle_location_histories ALTER PRIMARY KEY USING COLUMNS (city, ride_id, timestamp);")
-        queries_to_run["pk_alters"].append("ALTER TABLE vehicles ALTER PRIMARY KEY USING COLUMNS (city, id);")
-        queries_to_run["pk_alters"].append("ALTER TABLE user_promo_codes ALTER PRIMARY KEY USING COLUMNS (city, user_id, code);")
-
-        # users
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS users_city_idx;")
-
-        # vehicles
-        queries_to_run["fk_alters"].append("ALTER TABLE vehicles DROP CONSTRAINT fk_owner_id_ref_users;")
-
-
-        # for v20.1 and lower, foreign key requires an existing index on columns
-        queries_to_run["fk_alters"].append("CREATE INDEX ON vehicles (city, owner_id);")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicles_auto_index_fk_owner_id_ref_users;")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicles_city_idx;")
-        queries_to_run["fk_alters"].append(
-            "ALTER TABLE vehicles ADD CONSTRAINT fk_owner_id_ref_users_mr FOREIGN KEY (city, owner_id) REFERENCES users (city,id);")
-
-        # rides
-        queries_to_run["fk_alters"].append("ALTER TABLE rides DROP CONSTRAINT fk_rider_id_ref_users;")
-        queries_to_run["fk_alters"].append("CREATE INDEX ON rides (city, rider_id);")
-        queries_to_run["fk_alters"].append(
-            "ALTER TABLE rides ADD CONSTRAINT fk_rider_id_ref_users_mr FOREIGN KEY (city, rider_id) REFERENCES users (city,id);")
-        queries_to_run["fk_alters"].append("ALTER TABLE rides DROP CONSTRAINT fk_vehicle_id_ref_vehicles;")
-        queries_to_run["fk_alters"].append("CREATE INDEX ON rides (city, vehicle_id);")
-        queries_to_run["fk_alters"].append(
-            "ALTER TABLE rides ADD CONSTRAINT fk_vehicle_id_ref_vehicles_mr FOREIGN KEY (city, vehicle_id) REFERENCES vehicles (city,id);")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS rides_auto_index_fk_rider_id_ref_users;")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS rides_auto_index_fk_vehicle_id_ref_vehicles;")
-
-
-        # user_promo_codes
-        queries_to_run["fk_alters"].append("ALTER TABLE user_promo_codes DROP CONSTRAINT fk_user_id_ref_users;")
-        queries_to_run["fk_alters"].append(
-            "ALTER TABLE user_promo_codes ADD CONSTRAINT fk_user_id_ref_users_mr FOREIGN KEY (city, user_id) REFERENCES users (city,id);")
-
-
-        # drop all the old pks that became unique indexes
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS users_id_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS user_promo_codes_user_id_code_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS rides_id_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicles_id_key CASCADE;")
-        queries_to_run["fk_alters"].append("DROP INDEX IF EXISTS vehicle_location_histories_ride_id_timestamp_key CASCADE;")
-
+        queries_to_run = {"database_regions": [], "table_localities": []}
+        #@todo: need to add the right database name
+        queries_to_run["database_regions"].append('ALTER DATABASE movr PRIMARY REGION "us-east1";') #@todo: add IF NOT EXISTS
+        queries_to_run["database_regions"].append('ALTER DATABASE movr ADD REGION "us-west1";')
+        queries_to_run["database_regions"].append('ALTER DATABASE movr ADD REGION "europe-west1";')
+        queries_to_run["table_localities"].append('ALTER TABLE users SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run["table_localities"].append('ALTER TABLE rides SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run["table_localities"].append('ALTER TABLE vehicle_location_histories SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run["table_localities"].append('ALTER TABLE vehicles SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run["table_localities"].append('ALTER TABLE user_promo_codes SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run["table_localities"].append('ALTER TABLE promo_codes SET LOCALITY GLOBAL;')
         return queries_to_run
 
     def run_multi_region_transformations(self):
         logging.info("applying schema changes to make this database multi-region (this may take up to a minute).")
         queries_to_run = self.get_multi_region_transformations()
 
-        logging.info("altering primary keys...")
-        self.run_queries_in_separate_transactions(queries_to_run["pk_alters"])
-        logging.info("altering foreign keys and dropping old indexes...")
-        self.run_queries_in_separate_transactions(queries_to_run["fk_alters"])
+        logging.info("altering database regions...")
+        self.run_queries_in_separate_transactions(queries_to_run["database_regions"])
+        logging.info("altering table localities...")
+        self.run_queries_in_separate_transactions(queries_to_run["table_localities"])
         logging.info("done.")
 
-
-
-    ############
-    # GEO PARTITIONING
-    ############
-
-    def get_geo_partitioning_queries(self, partition_map, zone_map):
-
-
-        def get_index_partition_name(region, index_name):
-            return region + "_" + index_name
-
-        def create_partition_string(index_name=""):
-            partition_string = ""
-            first_region = True
-            for region in partition_map:
-                region_name = get_index_partition_name(region, index_name) if index_name else region
-                partition_string += "PARTITION " + region_name + " VALUES IN (" if first_region \
-                    else ", PARTITION " + region_name + " VALUES IN ("
-                first_region = False
-                first_city = True
-                for city in partition_map[region]:
-                    partition_string += "'" + city + "' " if first_city else ", '" + city + "'"
-                    first_city = False
-                partition_string += ")"
-            return partition_string
-
-        queries_to_run = {}
-
-        partition_string = create_partition_string()
-        for table in ["vehicles", "users", "rides", "vehicle_location_histories", "user_promo_codes"]:
-            partition_sql = "ALTER TABLE " + table + " PARTITION BY LIST (city) (" + partition_string + ");"
-            queries_to_run.setdefault("table_partitions",[]).append(partition_sql)
-
-            for partition_name in partition_map:
-                if not partition_name in zone_map:
-                    logging.info("partition_name %s not found in zone map. Skipping", partition_name)
-                    continue
-
-                zone_sql = "ALTER PARTITION " + partition_name + " OF TABLE " + table + " CONFIGURE ZONE USING constraints='[+region=" + \
-                           zone_map[partition_name] + "]';"
-                queries_to_run.setdefault("table_zones",[]).append(zone_sql)
-
-        for index in [{"index_name": "rides_city_rider_id_idx", "prefix_name": "city", "table": "rides"},
-                      {"index_name": "rides_city_vehicle_id_idx", "prefix_name": "city",
-                       "table": "rides"},
-                      {"index_name": "vehicles_city_owner_id_idx", "prefix_name": "city",
-                       "table": "vehicles"}]:
-            partition_string = create_partition_string(index_name=index["index_name"])
-            partition_sql = "ALTER INDEX " + index["index_name"] + " PARTITION BY LIST (" + index[
-                "prefix_name"] + ") (" + partition_string + ");"
-            queries_to_run.setdefault("index_partitions",[]).append(partition_sql)
-
-            for partition_name in partition_map:
-                if not partition_name in zone_map:
-                    logging.info("partition_name %s not found in zone map. Skipping", partition_name)
-                    continue
-                zone_sql = "ALTER PARTITION " + get_index_partition_name(partition_name,
-                                                                         index["index_name"]) + " OF TABLE " + \
-                           index["table"] + " CONFIGURE ZONE USING constraints='[+region=" + zone_map[
-                               partition_name] + "]';"
-                queries_to_run.setdefault("index_zones",[]).append(zone_sql)
-
-
-        # create an index in each region so we can use the zone-config aware CBO
-        for partition_name in partition_map:
-            if not partition_name in zone_map:
-                logging.info("partition_name %s not found in zone map. Skipping index creation for promo codes",
-                             partition_name)
-                continue
-
-            sql = "CREATE INDEX promo_codes_" + partition_name + "_idx on promo_codes (code) STORING (description, creation_time, expiration_time, rules);"
-            queries_to_run.setdefault("promo_code_indices",[]).append(sql)
-
-            sql = "ALTER INDEX promo_codes@promo_codes_" + partition_name + "_idx CONFIGURE ZONE USING constraints='[+region=" + \
-                  zone_map[partition_name] + "]';";
-            queries_to_run.setdefault("promo_code_zones",[]).append(sql)
-
-        return queries_to_run
-
-
-
-
-
-    # setup geo-partitioning if this is an enterprise cluster
-    def add_geo_partitioning(self, partition_map, zone_map):
-        queries = self.get_geo_partitioning_queries(partition_map, zone_map)
-
-
-
-        logging.info("partitioned tables...")
-
-        self.run_queries_in_separate_transactions(queries["table_partitions"])
-
-        logging.info("partitioned indices...")
-        self.run_queries_in_separate_transactions(queries["index_partitions"])
-
-        logging.info("applying table zone configs...")
-        self.run_queries_in_separate_transactions(queries["table_zones"])
-
-        logging.info("applying index zone configs...")
-        self.run_queries_in_separate_transactions(queries["index_zones"])
-
-        logging.info("adding indexes for promo code reference tables...")
-        self.run_queries_in_separate_transactions(queries["promo_code_indices"])
-
-        logging.info("applying zone configs for reference table indices...")
-        self.run_queries_in_separate_transactions(queries["promo_code_zones"])
 
 
 
