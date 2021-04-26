@@ -43,7 +43,7 @@ class MovRStats:
 
             if action in self.window_stats:
                 return [action, round(elapsed, 0),  self.cumulative_counts[action], len(self.window_stats[action]),
-                        len(self.window_stats[action]) / elapsed,
+                        round(float(len(self.window_stats[action]) / elapsed),2),
                         round(float(get_percentile_measurement(action, 50)) * 1000, 2),
                         round(float(get_percentile_measurement(action, 90)) * 1000, 2),
                         round(float(get_percentile_measurement(action, 95)) * 1000, 2),

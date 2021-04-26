@@ -160,20 +160,18 @@ class MovR:
                                lambda session: add_promo_code_helper(session, code, description, expiration_time, rules))
 
 
-    def apply_promo_code(self, user_city, user_id, promo_code):
-        def apply_promo_code_helper(session, user_city, user_id, code):
+    def apply_promo_code(self, user_id, promo_code):
+        def apply_promo_code_helper(session, user_id, code):
             pc = session.query(PromoCode).filter_by(code=code).one_or_none()
             if pc:
                 # see if it has already been applied
-                upc = session.query(UserPromoCode).\
-                    filter_by(city = user_city, user_id = user_id, code = code).one_or_none() if self.multi_region else session.query(UserPromoCode).\
-                    filter_by(user_id = user_id, code = code).one_or_none()
+                upc = session.query(UserPromoCode).filter_by(user_id = user_id, code = code).one_or_none()
                 if not upc:
-                    upc = UserPromoCode(city = user_city, user_id = user_id, code = code)
+                    upc = UserPromoCode(user_id = user_id, code = code)
                     session.add(upc)
 
         run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: apply_promo_code_helper(session, user_city, user_id, promo_code))
+                               lambda session: apply_promo_code_helper(session, user_id, promo_code))
 
     def multi_query_helper(session, queries):
         for query in queries:

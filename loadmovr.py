@@ -20,8 +20,6 @@ RUNNING_THREADS = []
 TERMINATE_GRACEFULLY = False
 DEFAULT_READ_PERCENTAGE = .95
 
-#@todo: add checks for multi-region operations on single region schemas.
-
 ACTION_ADD_VEHICLE = "add vehicle"
 ACTION_GET_VEHICLES = "get vehicles"
 ACTION_UPDATE_RIDE_LOC = "log ride location"
@@ -143,7 +141,7 @@ def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, acti
                         elif random.random() < .1:
                             # simulate a user applying a promo code to her account
                             start = time.time()
-                            movr.apply_promo_code(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
+                            movr.apply_promo_code(random.choice(movr_objects["local"][active_city]["users"])['id'],
                                 random.choice(movr_objects["global"]["promo_codes"]))
                             stats.add_latency_measurement(ACTION_APPLY_CODE, time.time() - start)
                         elif random.random() < .3:
