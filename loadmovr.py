@@ -47,46 +47,41 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-DEFAULT_PARTITION_MAP = {
-    "us_east": ["new york", "boston", "washington dc"],
-    "us_west": ["san francisco", "seattle", "los angeles"],
-    "us_central": ["chicago", "detroit", "minneapolis"],
-    "eu_west": ["amsterdam", "paris", "rome"]
-}
+DEFAULT_REGIONS = ["us-east1", "us-west1", "europe-west1"]
 
-# Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
-def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, num_promo_codes_per_thread, cities, echo_sql = False):
+# Create a connection to the movr database and populate a set of regions with rides, vehicles, and users.
+def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, num_promo_codes_per_thread, regions, echo_sql = False):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
 
     start_time = time.time()
     with MovR(conn_string, echo=echo_sql) as movr:
         engine = create_engine(conn_string, convert_unicode=True, echo=echo_sql)
-        for city in cities:
+        for region in regions:
             if TERMINATE_GRACEFULLY:
                 logging.debug("terminating")
                 break
 
-            logging.info("Generating user data for %s...", city)
-            add_users(engine, num_users, city)
-            logging.info("Generating vehicle data for %s...", city)
-            add_vehicles(engine, num_vehicles, city)
-            logging.info("Generating ride data for %s...", city)
-            add_rides(engine, num_rides, city)
-            logging.info("Generating location history data for %s...", city)
-            add_vehicle_location_histories(engine, num_histories, city)
+            logging.info("Generating user data for %s...", region)
+            add_users(engine, num_users, region)
+            logging.info("Generating vehicle data for %s...", region)
+            add_vehicles(engine, num_vehicles, region)
+            logging.info("Generating ride data for %s...", region)
+            add_rides(engine, num_rides, region)
+            logging.info("Generating location history data for %s...", region)
+            add_vehicle_location_histories(engine, num_histories, region)
             logging.info("populated %s in %f seconds",
-                  city, time.time() - start_time)
+                  region, time.time() - start_time)
 
         logging.info("Generating %s promo codes...", num_promo_codes_per_thread)
         add_promo_codes(engine, num_promo_codes_per_thread)
 
     return
 
-# Generates evenly distributed load among the provided cities
+# Generates evenly distributed load among the provided regions
 
 
-def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql = False):
+def simulate_movr_load(conn_string, use_multi_region, regions, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql = False):
 
     datagen = Faker()
     while True:
@@ -104,12 +99,10 @@ def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, acti
                         break
 
 
-                    active_city = random.choice(cities)
-
                     if random.random() < read_percentage:
                         # simulate user loading screen
                         start = time.time()
-                        movr.get_vehicles(active_city, follower_reads, 25)
+                        movr.get_vehicles(follower_reads, 25)
                         stats.add_latency_measurement("get vehicles",time.time() - start )
 
                     else:
@@ -119,7 +112,7 @@ def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, acti
 
                             latlong = MovRGenerator.generate_random_latlong()
                             start = time.time()
-                            movr.update_ride_location(ride['city'], ride_id=ride['id'], lat=latlong['lat'],
+                            movr.update_ride_location(ride_id=ride['id'], lat=latlong['lat'],
                                                       long=latlong['long'])
                             stats.add_latency_measurement(ACTION_UPDATE_RIDE_LOC, time.time() - start)
 
@@ -141,33 +134,33 @@ def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, acti
                         elif random.random() < .1:
                             # simulate a user applying a promo code to her account
                             start = time.time()
-                            movr.apply_promo_code(random.choice(movr_objects["local"][active_city]["users"])['id'],
+                            movr.apply_promo_code(random.choice(movr_objects["local"]["users"])['id'],
                                 random.choice(movr_objects["global"]["promo_codes"]))
                             stats.add_latency_measurement(ACTION_APPLY_CODE, time.time() - start)
                         elif random.random() < .3:
                             # simulate new signup
                             start = time.time()
-                            new_user = movr.add_user(active_city, datagen.name(), datagen.address(), datagen.credit_card_number())
+                            new_user = movr.add_user(datagen.name(), datagen.address(), datagen.credit_card_number())
                             stats.add_latency_measurement(ACTION_NEW_USER, time.time() - start)
-                            movr_objects["local"][active_city]["users"].append(new_user)
+                            movr_objects["local"]["users"].append(new_user)
 
                         elif random.random() < .1:
                             # simulate a user adding a new vehicle to the population
                             start = time.time()
-                            new_vehicle = movr.add_vehicle(active_city,
-                                                owner_id = random.choice(movr_objects["local"][active_city]["users"])['id'],
+                            new_vehicle = movr.add_vehicle(
+                                                owner_id = random.choice(movr_objects["local"]["users"])['id'],
                                                 type = MovRGenerator.generate_random_vehicle(),
                                                 vehicle_metadata = MovRGenerator.generate_vehicle_metadata(type),
                                                 status=MovRGenerator.get_vehicle_availability(),
                                                 current_location = datagen.address())
                             stats.add_latency_measurement(ACTION_ADD_VEHICLE, time.time() - start)
-                            movr_objects["local"][active_city]["vehicles"].append(new_vehicle)
+                            movr_objects["local"]["vehicles"].append(new_vehicle)
 
                         elif random.random() < .5:
                             # simulate a user starting a ride
                             start = time.time()
-                            ride = movr.start_ride(active_city, random.choice(movr_objects["local"][active_city]["users"])['id'],
-                                                   random.choice(movr_objects["local"][active_city]["vehicles"])['id'])
+                            ride = movr.start_ride(random.choice(movr_objects["local"]["users"])['id'],
+                                                   random.choice(movr_objects["local"]["vehicles"])['id'])
                             stats.add_latency_measurement(ACTION_START_RIDE, time.time() - start)
                             active_rides.append(ride)
 
@@ -176,40 +169,19 @@ def simulate_movr_load(conn_string, use_multi_region, cities, movr_objects, acti
                                 #simulate a ride ending
                                 ride = active_rides.pop()
                                 start = time.time()
-                                movr.end_ride(ride['city'], ride['id'])
+                                movr.end_ride(ride['id'])
                                 stats.add_latency_measurement(ACTION_END_RIDE, time.time() - start)
         except DBAPIError:
             logging.error("lost connection to the db. sleeping for 10 seconds")
             time.sleep(10)
 
 
-# creates a map of partions when given a list of pairs in the form <partition>:<city_id>.
-def extract_region_city_pairs_from_cli(pair_list):
-    if pair_list is None:
-        return DEFAULT_PARTITION_MAP
-
-    city_pairs = {}
-
-    for city_pair in pair_list:
-        pair = city_pair.split(":")
-        if len(pair) < 1:
-            pair = ["default"].append(pair[0])
-        else:
-            pair = [pair[0], ":".join(pair[1:])]  # if there are many semicolons convert this to only two items
-
-
-        city_pairs.setdefault(pair[0],[]).append(pair[1])
-
-    return city_pairs
-
-def get_cities(city_list):
-    cities = []
-    if city_list is None:
-        for partition in DEFAULT_PARTITION_MAP:
-            cities += DEFAULT_PARTITION_MAP[partition]
-        return cities
+def get_regions(region_list):
+    regions = []
+    if region_list is None:
+        return DEFAULT_REGIONS
     else:
-        return city_list
+        return region_list
 
 def extract_zone_pairs_from_cli(pair_list):
     if pair_list is None:
@@ -274,8 +246,8 @@ def setup_parser():
                              help='The number of ride location histories to add to the dataset')
     load_parser.add_argument('--num-promo-codes', dest='num_promo_codes', type=int, default=1000,
                              help='The number of promo codes to add to the dataset')
-    load_parser.add_argument('--city', dest='city', action='append',
-                             help='this will  load random data for each of the cities specified. Use this flag multiple times to add multiple cities.')
+    load_parser.add_argument('--region', dest='region', action='append',
+                             help='this will load random data for each of the regions specified. Use this flag multiple times to add multiple regions.')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep existing tables and data when loading Movr tables')
 
@@ -290,8 +262,8 @@ def setup_parser():
                             default=30)
     run_parser.add_argument('--follower-reads', dest='follower_reads', action='store_true', default=False,
                             help='Use the closest replica to serve fast, but slightly stale, read requests')
-    run_parser.add_argument('--city', dest='city', action='append',
-                            help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
+    run_parser.add_argument('--region', dest='region', action='append',
+                            help='The names of the regions to use when generating load. Use this flag multiple times to add multiple regions.')
     run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
                             help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
                             default=.95)
@@ -309,17 +281,12 @@ def setup_parser():
     ####################
     # PARTITION COMMANDS
     ####################
+
+    #@todo: want to be able to do this in multiple steps
     partition_parser = subparsers.add_parser('partition', help="partition the movr data to improve performance in geo-distributed environments. Your cluster must have an enterprise license to use this feature (https://cockroa.ch/2BoAlgB)")
 
-    partition_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
-                             help='Pairs in the form <region>:<city_id> that will be used to partition cities into regions. Example: us_west:seattle. Use this flag multiple times to partition multiple cities.')
-    partition_parser.add_argument('--region-zone-pair', dest='region_zone_pair', action='append',
-                             help='Pairs in the form <region>:<zone> that will be used to assign regional partitions to nodes that are tagged with the specified zone. '
-                                  'Example: us_west:us-west1. Use this flag multiple times to add multiple zones.')
     partition_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                              help='If this flag is set, movr will print the commands to partition the data, but will not actually run them.')
-
-
 
     return parser
 
@@ -327,19 +294,22 @@ def setup_parser():
 # BULK DATA LOADING
 ##############
 
-def add_rides(engine, num_rides, city):
+def add_rides(engine, num_rides, region):
     chunk_size = 800
     datagen = Faker()
 
     def add_rides_helper(sess, chunk, n):
-        users = sess.query(User).filter_by(city=city).all()
-        vehicles = sess.query(Vehicle).filter_by(city=city).all()
+        #@todo:
+        #users = sess.query(User).filter_by(region=region).all()
+        users = sess.query(User).all()
+        #vehicles = sess.query(Vehicle).filter_by(region=region).all()
+        vehicles = sess.query(Vehicle).all()
 
         rides = []
         for i in range(chunk, min(chunk + chunk_size, num_rides)):
             start_time = datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 30))
             rides.append(Ride(id=MovRGenerator.generate_uuid(),
-                              city=city,
+                              #region=region, #@todo: use system table
                               rider_id=random.choice(users).id,
                               vehicle_id=random.choice(vehicles).id,
                               start_time=start_time,
@@ -374,17 +344,17 @@ def add_promo_codes(engine, num_codes):
 
 
 
-def add_vehicle_location_histories(engine, num_histories, city):
+def add_vehicle_location_histories(engine, num_histories, region):
     chunk_size = 5000
 
     def add_vehicle_location_histories_helper(sess, chunk, n):
-        rides = sess.query(Ride).filter_by(city=city).all()
+        #rides = sess.query(Ride).filter_by(region=region).all() #@todo
+        rides = sess.query(Ride).all()
 
         histories = []
         for i in range(chunk, min(chunk + chunk_size, num_histories)):
             latlong = MovRGenerator.generate_random_latlong()
             histories.append(VehicleLocationHistory(
-                city=city,
                 ride_id=random.choice(rides).id,
                 lat=latlong["lat"],
                 long=latlong["long"]))
@@ -395,7 +365,7 @@ def add_vehicle_location_histories(engine, num_histories, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicle_location_histories_helper(s, chunk, min(chunk + chunk_size, num_histories)))
 
-def add_users(engine, num_users, city):
+def add_users(engine, num_users, region):
     chunk_size = 1000
     datagen = Faker()
 
@@ -403,7 +373,7 @@ def add_users(engine, num_users, city):
         users = []
         for i in range(chunk, n):
             users.append(User(id=MovRGenerator.generate_uuid(),
-                              city=city,
+                              # region=region, #@todo: how do we override this in an orm?
                               name=datagen.name(),
                               address=datagen.address(),
                               credit_card=datagen.credit_card_number()))
@@ -413,18 +383,19 @@ def add_users(engine, num_users, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_users_helper(s, chunk, min(chunk + chunk_size, num_users)))
 
-def add_vehicles(engine, num_vehicles, city):
+def add_vehicles(engine, num_vehicles, region):
     chunk_size = 1000
     datagen = Faker()
 
     def add_vehicles_helper(sess, chunk, n):
-        owners = sess.query(User).filter_by(city=city).all()
+        #owners = sess.query(User).filter_by(crdb_region=region).all() #@todo: this fails
+        owners = sess.query(User).all() #@todo: this fails
         vehicles = []
         for i in range(chunk, n):
             vehicle_type = MovRGenerator.generate_random_vehicle()
             vehicles.append(Vehicle(id=MovRGenerator.generate_uuid(),
                                     type=vehicle_type,
-                                    city=city,
+                                    #region=region, #@todo: figure this out
                                     current_location=datagen.address(),
                                     owner_id=(random.choice(owners)).id,
                                     status=MovRGenerator.get_vehicle_availability(),
@@ -435,7 +406,7 @@ def add_vehicles(engine, num_vehicles, city):
         run_transaction(sessionmaker(bind=engine),
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
-def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
+def run_data_loader(conn_string, regions, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
                     skip_reload_tables, use_multi_region, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0")
@@ -446,34 +417,34 @@ def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num
 
     with MovR(conn_string, init_tables=(not skip_reload_tables), multi_region = use_multi_region, echo=echo_sql) as movr:
 
-        logging.info("loading cities %s", cities)
+        logging.info("loading regions %s", regions)
         logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
                      num_users, num_vehicles, num_rides, num_histories, num_promo_codes)
 
-    usable_threads = min(num_threads, len(cities))  # don't create more than 1 thread per city
+    usable_threads = min(num_threads, len(regions))  # don't create more than 1 thread per region
     if usable_threads < num_threads:
-        logging.info("Only using %d of %d requested threads, since we only create at most one thread per city",
+        logging.info("Only using %d of %d requested threads, since we only create at most one thread per region",
                      usable_threads, num_threads)
 
-    cities_per_thread = int(math.ceil((float(len(cities)) / usable_threads)))
-    num_users_per_city = int(math.ceil((float(num_users) / len(cities))))
-    num_rides_per_city = int(math.ceil((float(num_rides) / len(cities))))
-    num_vehicles_per_city = int(math.ceil((float(num_vehicles) / len(cities))))
-    num_histories_per_city = int(math.ceil((float(num_histories) / len(cities))))
+    regions_per_thread = int(math.ceil((float(len(regions)) / usable_threads)))
+    num_users_per_region = int(math.ceil((float(num_users) / len(regions))))
+    num_rides_per_region = int(math.ceil((float(num_rides) / len(regions))))
+    num_vehicles_per_region = int(math.ceil((float(num_vehicles) / len(regions))))
+    num_histories_per_region = int(math.ceil((float(num_histories) / len(regions))))
 
     num_promo_codes_per_thread = int(math.ceil((float(num_promo_codes) / usable_threads)))
 
     RUNNING_THREADS = []
 
 
-    original_city_count = len(cities)
+    original_region_count = len(regions)
     for i in range(usable_threads):
-        if len(cities) > 0:
-            t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_city, num_vehicles_per_city,
-                                                              num_rides_per_city, num_histories_per_city, num_promo_codes_per_thread,
-                                                              cities[:cities_per_thread],
+        if len(regions) > 0:
+            t = threading.Thread(target=load_movr_data, args=(conn_string, num_users_per_region, num_vehicles_per_region,
+                                                              num_rides_per_region, num_histories_per_region, num_promo_codes_per_thread,
+                                                              regions[:regions_per_thread],
                                                               echo_sql))
-            cities = cities[cities_per_thread:]
+            regions = regions[regions_per_thread:]
             t.start()
             RUNNING_THREADS.append(t)
 
@@ -482,34 +453,34 @@ def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num
 
     duration = time.time() - start_time
 
-    logging.info("populated %s cities in %f seconds", original_city_count, duration)
+    logging.info("populated %s regions in %f seconds", original_region_count, duration)
 
-# generate fake load for objects within the provided city list
-def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, use_multi_region, follower_reads, echo_sql, num_threads):
+# generate fake load for objects within the provided region list
+def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, region_list, use_multi_region, follower_reads, echo_sql, num_threads):
     if read_percentage < 0 or read_percentage > 1:
         raise ValueError("read percentage must be between 0 and 1")
 
 
-    logging.info("simulating movr load for cities %s", city_list)
+    logging.info("simulating movr load for regions %s", region_list)
 
     movr_objects = { "local": {}, "global": {}}
 
     logging.info("warming up....")
     with MovR(conn_string, multi_region=  use_multi_region, echo=echo_sql) as movr:
         active_rides = []
-        for city in city_list:
-            movr_objects["local"][city] = {"users": movr.get_users(city, follower_reads), "vehicles": movr.get_vehicles(city, follower_reads)}
-            if len(list(movr_objects["local"][city]["vehicles"])) == 0 or len(list(movr_objects["local"][city]["users"])) == 0:
-                logging.error("must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
+        for region in region_list:
+            movr_objects["local"] = {"users": movr.get_users(follower_reads), "vehicles": movr.get_vehicles(follower_reads)}
+            if len(list(movr_objects["local"]["vehicles"])) == 0 or len(list(movr_objects["local"]["users"])) == 0:
+                logging.error("must have users and vehicles loaded in the movr database to generate load. try running with the 'load' command.")
                 sys.exit(1)
 
-            active_rides.extend(movr.get_active_rides(city, follower_reads))
+            active_rides.extend(movr.get_active_rides(region, follower_reads))
         movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
     RUNNING_THREADS = []
     logging.info("running single region queries...") if not use_multi_region else logging.info("running multi-region queries...")
     for i in range(num_threads):
-        t = threading.Thread(target=simulate_movr_load, args=(conn_string, use_multi_region, city_list, movr_objects,
+        t = threading.Thread(target=simulate_movr_load, args=(conn_string, use_multi_region, region_list, movr_objects,
                                                     active_rides, read_percentage, follower_reads,
                                                               connection_duration_in_seconds, echo_sql ))
         t.start()
@@ -569,7 +540,7 @@ if __name__ == '__main__':
 
     if args.subparser_name=='load':
 
-        run_data_loader(conn_string, cities= get_cities(args.city), num_users= args.num_users, num_rides= args.num_rides, num_vehicles= args.num_vehicles, num_histories= args.num_histories,
+        run_data_loader(conn_string, regions= get_regions(args.region), num_users= args.num_users, num_rides= args.num_rides, num_vehicles= args.num_vehicles, num_histories= args.num_histories,
                         num_promo_codes= args.num_promo_codes, num_threads= args.num_threads, use_multi_region=args.multi_region,
                         skip_reload_tables= args.skip_reload_tables, echo_sql= args.echo_sql)
 
@@ -596,15 +567,15 @@ if __name__ == '__main__':
     elif args.subparser_name=="partition":
         #@todo: ruggedize this so it doesnt break when run on a single region cluster. look at pg metadata
         # population partitions
-        partition_city_map = extract_region_city_pairs_from_cli(args.region_city_pair)
+        partition_region_map = extract_region_region_pairs_from_cli(args.region_region_pair)
         partition_zone_map = extract_zone_pairs_from_cli(args.region_zone_pair)
 
         print("\nPartitioning Setting Summary\n")
         rows = []
-        for partition in sorted(list(partition_city_map)):
-            for city in sorted(partition_city_map[partition]):
-                rows.append([partition,city])
-        print(tabulate(rows, ["partition", "city"]), "\n")
+        for partition in sorted(list(partition_region_map)):
+            for region in sorted(partition_region_map[partition]):
+                rows.append([partition,region])
+        print(tabulate(rows, ["partition", "region"]), "\n")
 
         rows = []
         for partition in partition_zone_map:
@@ -620,7 +591,7 @@ if __name__ == '__main__':
 
         with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
             if args.preview_queries:
-                queries = movr.get_geo_partitioning_queries(partition_city_map, partition_zone_map)
+                queries = movr.get_geo_partitioning_queries(partition_region_map, partition_zone_map)
                 print("queries to geo-partition the database")
 
                 rows = []
@@ -648,15 +619,15 @@ if __name__ == '__main__':
 
             else:
                 print("partitioning tables...")
-                movr.add_geo_partitioning(partition_city_map, partition_zone_map)
+                movr.add_geo_partitioning(partition_region_map, partition_zone_map)
                 print("done.")
 
     elif args.subparser_name == "run":
         run_load_generator(conn_string, read_percentage= args.read_percentage, connection_duration_in_seconds= args.connection_duration_in_seconds,
-                           city_list= get_cities(args.city), use_multi_region=args.multi_region, follower_reads= args.follower_reads, echo_sql= args.echo_sql, num_threads= args.num_threads)
+                           region_list= get_regions(args.region), use_multi_region=args.multi_region, follower_reads= args.follower_reads, echo_sql= args.echo_sql, num_threads= args.num_threads)
     else:
         run_load_generator(conn_string, read_percentage= DEFAULT_READ_PERCENTAGE,
-                           connection_duration_in_seconds= 60, city_list= get_cities(None),
+                           connection_duration_in_seconds= 60, region_list= get_regions(None),
                            use_multi_region=False,
                            follower_reads= False, echo_sql= args.echo_sql, num_threads= args.num_threads)
 

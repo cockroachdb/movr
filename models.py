@@ -14,23 +14,20 @@ from generators import MovRGenerator
 
 Base = declarative_base()
 
+#@todo: how to override region
 class User(Base):
     __tablename__ = 'users'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
-    city = Column(String, nullable=False)
     name = Column(String)
     address = Column(String)
     credit_card = Column(String)
 
-    Index('users_city_idx', city)
-
     def __repr__(self):
-        return "<User(id='%s', name='%s')>" % (self.city, self.id, self.name)
+        return "<User(id='%s', name='%s')>" % (self.id, self.name)
 
 class Ride(Base):
     __tablename__ = 'rides'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
-    city = Column(String, nullable=False)
     rider_id = Column(UUID)
     vehicle_id = Column(UUID)
     start_address = Column(String)
@@ -43,11 +40,10 @@ class Ride(Base):
 
 
     def __repr__(self):
-        return "<Ride(id='%s', rider_id='%s', vehicle_id='%s')>" % (self.city, self.id, self.rider_id, self.vehicle_id)
+        return "<Ride(id='%s', rider_id='%s', vehicle_id='%s')>" % (self.id, self.rider_id, self.vehicle_id)
 
 class VehicleLocationHistory(Base):
     __tablename__ = 'vehicle_location_histories'
-    city = Column(String, nullable=False)
     ride_id = Column(UUID)
     timestamp = Column(DateTime, default=datetime.datetime.now)
     lat = Column(Float)
@@ -62,7 +58,6 @@ class VehicleLocationHistory(Base):
 class Vehicle(Base):
     __tablename__ = 'vehicles'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
-    city = Column(String, nullable=False)
     type = Column(String)
     owner_id = Column(UUID)
     creation_time = Column(DateTime, default=datetime.datetime.now)
@@ -71,10 +66,8 @@ class Vehicle(Base):
     ext = Column(JSONB)
     __table_args__ = (ForeignKeyConstraint([owner_id], ["users.id"], name='fk_owner_id_ref_users'),)
 
-    Index('vehicles_city_idx', city)
-
     def __repr__(self):
-        return "<Vehicle(id='%s', city='%s', type='%s', status='%s', ext='%s')>" % (self.id, self.city,  self.type, self.status, self.ext)
+        return "<Vehicle(id='%s', type='%s', status='%s', ext='%s')>" % (self.id, self.type, self.status, self.ext)
 
 class PromoCode(Base):
     __tablename__ = 'promo_codes'

@@ -50,8 +50,7 @@ class MovR:
             for upc in upcs:
                 promo_code = session.query(PromoCode).filter_by(code = upc.code).first()
                 if promo_code and promo_code.expiration_time > datetime.datetime.now():
-                    code_to_update = session.query(UserPromoCode).filter_by(city=city,
-                                                                  user_id=rider_id, code=upc.code) if self.multi_region else session.query(
+                    code_to_update = session.query(UserPromoCode).filter_by(user_id=rider_id, code=upc.code) if self.multi_region else session.query(
                         UserPromoCode).filter_by(user_id=rider_id,code=upc.code)
                     code_to_update.update({'usage_count': upc.usage_count+1})
 
@@ -63,7 +62,7 @@ class MovR:
             return {'id': r.id}
 
         return run_transaction(sessionmaker(bind=self.engine),
-                               lambda session: start_ride_helper(session, city, rider_id, vehicle_id))
+                               lambda session: start_ride_helper(session, rider_id, vehicle_id))
 
 
     def end_ride(self, ride_id):
@@ -85,7 +84,7 @@ class MovR:
             session.add(h)
 
         run_transaction(sessionmaker(bind=self.engine),
-                        lambda session: update_ride_location_helper(session, city, ride_id, lat, long))
+                        lambda session: update_ride_location_helper(session, ride_id, lat, long))
 
     def add_user(self, name, address, credit_card_number):
         def add_user_helper(session, name, address, credit_card_number):
@@ -150,6 +149,7 @@ class MovR:
         return run_transaction(sessionmaker(bind=self.engine), lambda session: get_promo_codes_helper(session, follower_reads, limit))
 
 
+
     def create_promo_code(self, code, description, expiration_time, rules):
         def add_promo_code_helper(session, code, description, expiration_time, rules):
             pc = PromoCode(code = code, description = description, expiration_time = expiration_time, rules = rules)
@@ -186,12 +186,23 @@ class MovR:
     # MULTI REGION TRANSFORMATIONS
     ################
 
+    def get_database_name(self):
+        def get_database_name_helper(session):
+            dbrow = session.execute(text('SELECT current_database()')).first()[0]
+            print(dbrow)
+            return dbrow
+
+        return run_transaction(sessionmaker(bind=self.engine), lambda session: get_database_name_helper(session))
+
     def get_multi_region_transformations(self):
         queries_to_run = {"database_regions": [], "table_localities": []}
-        #@todo: need to add the right database name
-        queries_to_run["database_regions"].append('ALTER DATABASE movr PRIMARY REGION "us-east1";') #@todo: add IF NOT EXISTS
-        queries_to_run["database_regions"].append('ALTER DATABASE movr ADD REGION "us-west1";')
-        queries_to_run["database_regions"].append('ALTER DATABASE movr ADD REGION "europe-west1";')
+
+        dbname = self.get_database_name()
+        logging.info("got database name: " + dbname)
+
+        queries_to_run["database_regions"].append('ALTER DATABASE ' + dbname + ' PRIMARY REGION "us-east1";') #@todo: add IF NOT EXISTS
+        queries_to_run["database_regions"].append('ALTER DATABASE ' + dbname + ' ADD REGION "us-west1";')
+        queries_to_run["database_regions"].append('ALTER DATABASE ' + dbname + ' ADD REGION "europe-west1";')
         queries_to_run["table_localities"].append('ALTER TABLE users SET LOCALITY REGIONAL BY ROW;')
         queries_to_run["table_localities"].append('ALTER TABLE rides SET LOCALITY REGIONAL BY ROW;')
         queries_to_run["table_localities"].append('ALTER TABLE vehicle_location_histories SET LOCALITY REGIONAL BY ROW;')
