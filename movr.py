@@ -194,26 +194,44 @@ class MovR:
 
         return run_transaction(sessionmaker(bind=self.engine), lambda session: get_database_name_helper(session))
 
-    def get_multi_region_transformations(self):
-        queries_to_run = {"database_regions": [], "table_localities": []}
+    def get_database_region_queries(self, regions):
+        queries_to_run = []
 
         dbname = self.get_database_name()
         logging.info("got database name: " + dbname)
 
-        queries_to_run["database_regions"].append('ALTER DATABASE ' + dbname + ' PRIMARY REGION "us-east1";') #@todo: add IF NOT EXISTS
-        queries_to_run["database_regions"].append('ALTER DATABASE ' + dbname + ' ADD REGION "us-west1";')
-        queries_to_run["database_regions"].append('ALTER DATABASE ' + dbname + ' ADD REGION "europe-west1";')
-        queries_to_run["table_localities"].append('ALTER TABLE users SET LOCALITY REGIONAL BY ROW;')
-        queries_to_run["table_localities"].append('ALTER TABLE rides SET LOCALITY REGIONAL BY ROW;')
-        queries_to_run["table_localities"].append('ALTER TABLE vehicle_location_histories SET LOCALITY REGIONAL BY ROW;')
-        queries_to_run["table_localities"].append('ALTER TABLE vehicles SET LOCALITY REGIONAL BY ROW;')
-        queries_to_run["table_localities"].append('ALTER TABLE user_promo_codes SET LOCALITY REGIONAL BY ROW;')
-        queries_to_run["table_localities"].append('ALTER TABLE promo_codes SET LOCALITY GLOBAL;')
+        first_region = True
+        for region in regions:
+            if first_region:
+                queries_to_run.append(
+                    'ALTER DATABASE ' + dbname + ' PRIMARY REGION "' + region + '";')
+                first_region = False
+            else:
+                queries_to_run.append('ALTER DATABASE ' + dbname + ' ADD REGION "' + region + '";')
         return queries_to_run
 
-    def run_multi_region_transformations(self):
+    def get_table_locality_queries(self):
+        queries_to_run = []
+
+        queries_to_run.append('ALTER TABLE users SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run.append('ALTER TABLE rides SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run.append(
+            'ALTER TABLE vehicle_location_histories SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run.append('ALTER TABLE vehicles SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run.append('ALTER TABLE user_promo_codes SET LOCALITY REGIONAL BY ROW;')
+        queries_to_run.append('ALTER TABLE promo_codes SET LOCALITY GLOBAL;')
+        return queries_to_run
+
+    def get_multi_region_transformations(self, regions):
+        queries_to_run = {"database_regions": [], "table_localities": []}
+
+        queries_to_run["database_regions"] = self.get_database_region_queries(regions)
+        queries_to_run["table_localities"] = self.get_table_locality_queries()
+        return queries_to_run
+
+    def run_multi_region_transformations(self, regions):
         logging.info("applying schema changes to make this database multi-region (this may take up to a minute).")
-        queries_to_run = self.get_multi_region_transformations()
+        queries_to_run = self.get_multi_region_transformations(regions)
 
         logging.info("altering database regions...")
         self.run_queries_in_separate_transactions(queries_to_run["database_regions"])

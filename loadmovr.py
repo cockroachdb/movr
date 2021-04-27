@@ -272,7 +272,11 @@ def setup_parser():
     #configure_multi_region
     ###################
 
+    #@todo: rename - this is adding regions to the database
     scale_out_parser = subparsers.add_parser('configure-multi-region', help="perform online update to single-region schema to enable multi-region deployments")
+
+    scale_out_parser.add_argument('--region', dest='region', action='append',
+                            help='The names of the regions to use. Use this flag multiple times to add multiple regions.')
 
     scale_out_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                         default=False,
@@ -548,7 +552,7 @@ if __name__ == '__main__':
         if args.preview_queries:
             with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
 
-                queries = movr.get_multi_region_transformations()
+                queries = movr.get_multi_region_transformations(get_regions(args.region))
                 print("DDL to convert a single region database to multi-region")
 
                 print("===database regions===")
@@ -561,7 +565,7 @@ if __name__ == '__main__':
             sys.exit(0)
         else:
             with MovR(conn_string, multi_region=True, init_tables=False, echo=args.echo_sql) as movr:
-                movr.run_multi_region_transformations()
+                movr.run_multi_region_transformations(get_regions(args.region))
 
 
     elif args.subparser_name=="partition":
