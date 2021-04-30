@@ -1,7 +1,8 @@
-CREATE DATABASE movr_new;
-USE movr_new:
+SET sql_safe_updates = FALSE;
+DROP DATABASE IF EXISTS movr CASCADE;
+CREATE DATABASE movr;
+USE movr;
 
---No changes to promo_codes
 CREATE TABLE public.promo_codes (
   code VARCHAR NOT NULL,
   description VARCHAR NULL,
@@ -9,18 +10,18 @@ CREATE TABLE public.promo_codes (
   expiration_time TIMESTAMP NULL,
   rules JSONB NULL,
   CONSTRAINT "primary" PRIMARY KEY (code ASC)
-)
---New users table
+);
+
 CREATE TABLE public.users (
   id UUID NOT NULL,
   city VARCHAR NOT NULL,
   name VARCHAR NULL,
   address VARCHAR NULL,
   credit_card VARCHAR NULL,
-  CONSTRAINT "primary" PRIMARY KEY (id ASC)
-)
+  CONSTRAINT "primary" PRIMARY KEY (id ASC),
+  INDEX city_idx (city)
+);
 
---New user_promo_codes
 CREATE TABLE public.user_promo_codes (
   city VARCHAR NOT NULL,
   user_id UUID NOT NULL REFERENCES users (id),
@@ -28,10 +29,8 @@ CREATE TABLE public.user_promo_codes (
   "timestamp" TIMESTAMP NULL,
   usage_count INT8 NULL,
   CONSTRAINT "primary" PRIMARY KEY (user_id ASC, code ASC)
-)
+);
 
---New vehicles Table
---need to check query performance
 CREATE TABLE public.vehicles (
   id UUID NOT NULL,
   city VARCHAR NOT NULL,
@@ -41,10 +40,10 @@ CREATE TABLE public.vehicles (
   status VARCHAR NULL,
   current_location VARCHAR NULL,
   ext JSONB NULL,
-  CONSTRAINT "primary" PRIMARY KEY (id ASC)
-)
---New rides table
---check query performance after removing indexes
+  CONSTRAINT "primary" PRIMARY KEY (id ASC),
+  INDEX city_idx (city)
+);
+
 CREATE TABLE public.rides (
   id UUID NOT NULL,
   city VARCHAR NOT NULL,
@@ -57,9 +56,10 @@ CREATE TABLE public.rides (
   end_time TIMESTAMP NULL,
   revenue DECIMAL(10,2) NULL,
   CONSTRAINT "primary" PRIMARY KEY (id ASC),
-  CONSTRAINT check_vehicle_city_city CHECK (vehicle_city = city)
-)
---New vehicle_location_histories table
+  CONSTRAINT check_vehicle_city_city CHECK (vehicle_city = city),
+  INDEX city_idx (city)
+);
+
 CREATE TABLE public.vehicle_location_histories (
   city VARCHAR NOT NULL,
   ride_id UUID NOT NULL REFERENCES rides (id),
@@ -67,4 +67,4 @@ CREATE TABLE public.vehicle_location_histories (
   lat FLOAT8 NULL,
   long FLOAT8 NULL,
   CONSTRAINT "primary" PRIMARY KEY (ride_id ASC, "timestamp" ASC)
-)
+);
