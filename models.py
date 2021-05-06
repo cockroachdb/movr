@@ -26,7 +26,7 @@ class User(Base):
     credit_card = Column(String)
 
     def __repr__(self):
-        return "<User(id='%s', name='%s')>" % (self.id, self.name)
+        return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
 
 # @todo: sqlalchemy fails silently if compound fks are in the wrong order.
 
@@ -48,7 +48,7 @@ class Ride(Base):
         [vehicle_id], ["vehicles.id"], name='fk_vehicle_id_ref_vehicles'),)
 
     def __repr__(self):
-        return "<Ride(id='%s', rider_id='%s', vehicle_id='%s')>" % (self.id, self.rider_id, self.vehicle_id)
+        return "<Ride(city='%s', id='%s', rider_id='%s', vehicle_id='%s')>" % (self.city, self.id, self.rider_id, self.vehicle_id)
 
 
 class VehicleLocationHistory(Base):
@@ -82,7 +82,7 @@ class Vehicle(Base):
     # check performance since removing indexes
 
     def __repr__(self):
-        return "<Vehicle(id='%s', type='%s', status='%s', ext='%s')>" % (self.id, self.type, self.status, self.ext)
+        return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
 
 
 class PromoCode(Base):

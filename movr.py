@@ -4,6 +4,7 @@ from sqlalchemy.exc import ProgrammingError
 from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
 from cockroachdb.sqlalchemy import run_transaction
 from generators import MovRGenerator
+import sys
 
 import datetime
 import logging
@@ -26,11 +27,14 @@ class MovR:
         self.multi_region = multi_region
 
         if reset_tables:
-            logging.info("reseting movr schema")
-            logging.info("initializing tables")
+            logging.info("Reseting database...")
+            logging.info("Dropping existing tables...")
             Base.metadata.drop_all(bind=self.engine)
+            logging.debug("Tables dropped.")
+            logging.info("Initializing tables...")
             Base.metadata.create_all(bind=self.engine)
-            logging.debug("tables dropped and created")
+            logging.debug("Tables dropped.")
+            logging.debug("Database reset complete.")
             if multi_region:
                 self.run_multi_region_transformations()
 
@@ -195,6 +199,26 @@ class MovR:
         run_transaction(sessionmaker(bind=self.engine),
                         lambda session: apply_promo_code_helper(session, user_city, user_id, promo_code))
 
+    def get_database_name(self):
+        db_name = self.session.execute(text('SELECT current_database()')).first()[0]
+        return str(db_name)
+
+    def get_regions(self):
+        region_tups = self.session.execute(text('SELECT region FROM [SHOW REGIONS]')).fetchall()
+        return list(tup[0] for tup in region_tups)
+
+    def get_cities(self, follower_reads=False):
+
+        def get_cities_helper(session, follower_reads):
+            if follower_reads:
+                session.execute(
+                    text('SET TRANSACTION AS OF SYSTEM TIME follower_read_timestamp()'))
+            users = self.session.query(User).distinct(User.city).all()
+            return tuple(user.city for user in users)
+
+        return run_transaction(sessionmaker(bind=self.engine),
+                               lambda session: get_cities_helper(session, follower_reads))
+
     def run_queries_in_separate_transactions(self, queries):
         for query in queries:
             try:
@@ -213,65 +237,29 @@ class MovR:
     # MULTI REGION TRANSFORMATIONS
     ################
 
-    def assign_regions(self, regions):
-        DEFAULT_REGION_MAP = {
-            'us_east': ['new york', 'boston', 'washington dc'],
-            'us_west': ['san francisco', 'seattle', 'los angeles'],
-            'us_central': ['chicago', 'detroit', 'minneapolis'],
-            'eu_west': ['amsterdam', 'paris', 'rome']
-        }
-        region_map = {}
-
-        for region in regions:
-            if 'east' in region:
-                region_map[region] = DEFAULT_REGION_MAP['us_east']
-            elif 'central' in region:
-                region_map[region] = DEFAULT_REGION_MAP['us_central']
-            elif 'west' in region:
-                if 'eu' in region:
-                    region_map[region] = DEFAULT_REGION_MAP['eu_west']
-                else:
-                    region_map[region] = DEFAULT_REGION_MAP['us_west']
-            else:
-                region_map = None
-
-        if len(region_map) < len(DEFAULT_REGION_MAP):
-            default_cities = []
-            region_cities = []
-            for region_default in DEFAULT_REGION_MAP:
-                default_cities.extend(DEFAULT_REGION_MAP[region_default])
-            for region in region_map:
-                region_cities.extend(region_map[region])
-            for city in default_cities:
-                if city not in region_cities:
-                    region_map[self.primary_region].append(city)
-
-        return region_map
-
-    def get_multi_region_transformations(self):
+    def get_multi_region_transformations(self, region_map):
         # This function uses raw SQL, as there is no functional mapping to multi-region ALTER statements, in any ORM/tool
         # We should really execute all schema changes with Alembic (the migration tool built for SQLAlchemy), but this should work for now
         # See https://docs.sqlalchemy.org/en/14/core/metadata.html#altering-database-objects-through-migrations
 
         # Alter database statements
-        region_tups = self.session.execute(
-            text('SELECT region FROM [SHOW REGIONS]')).fetchall()
-        regions = []
-        for tup in region_tups:
-            regions.append(tup[0])
+        regions = self.get_regions()
 
         if self.primary_region is None:
             self.primary_region = regions[0]
+        elif self.primary_region not in regions:
+            logging.error("{0} must exist as a cluster locality in order to be a primary region.".format(self.primary_region))
+            sys.exit(1)
 
-        add_primary_region_query = 'ALTER DATABASE movr PRIMARY REGION "{0}"'.format(
-            self.primary_region)
+        db_name = self.get_database_name()
+
+        add_primary_region_query = 'ALTER DATABASE {0} PRIMARY REGION "{1}"'.format(db_name, self.primary_region)
         add_primary_region_query = text(add_primary_region_query)
 
         add_region_queries = []
         for region in regions:
             if region != self.primary_region:
-                add_region_query = 'ALTER DATABASE movr ADD REGION "{0}"'.format(
-                    region)
+                add_region_query = 'ALTER DATABASE {0} ADD REGION "{1}"'.format(db_name, region)
                 add_region_query = text(add_region_query)
                 add_region_queries.append(add_region_query)
 
@@ -281,8 +269,6 @@ class MovR:
             text('SELECT table_name FROM [SHOW TABLES]')).fetchall()
         for tup in table_tups:
             tables.append(tup[0])
-
-        region_map = self.assign_regions(regions)
         add_region_column_queries = []
         not_null_region_column_queries = []
         set_locality_regional_queries = []
@@ -318,9 +304,9 @@ class MovR:
 
         return queries
 
-    def run_multi_region_transformations(self):
+    def run_multi_region_transformations(self, region_map):
         logging.info("constructing multi-region schema change statements.")
-        queries_to_run = self.get_multi_region_transformations()
+        queries_to_run = self.get_multi_region_transformations(region_map)
         logging.info(
             "applying multi-region schema changes (this may take a few minutes).")
         self.run_queries_in_separate_transactions(queries_to_run)

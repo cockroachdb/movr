@@ -18,19 +18,19 @@ $ cockroach start --insecure --store=node3 --listen-addr=localhost:26259 --http-
 $ cockroach init --insecure
 ```
 
-Then, use the [`cockroach` SQL client](https://www.cockroachlabs.com/docs/v21.1/cockroach-sql.html) to create the `movr` database with the `movr_init.sql` file:
+Then, use the [`cockroach` SQL client](https://www.cockroachlabs.com/docs/v21.1/cockroach-sql.html) to create the `movr` database:
 
 ```
-$ cockroach sql --insecure --url="postgres://root@localhost:26257" < movr_init.sql
+$ cockroach sql --url="postgres://root@localhost:26257?sslmode=disable" -e "CREATE DATABASE movr;"
 ```
 
-To generate and insert some data into the cluster, run the following command:
+To initialize the tables in the database, generate some data, and and insert it into the cluster, run the following command:
 
 ```
 $ docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10 --city="boston" --city="new york" --city="washington dc" --city="los angeles" --city="san francisco" --city="seattle" --city="amsterdam" --city="paris" --city="rome"
 ```
 
-The application generates 100 users, 100 rides, and 10 vehicles and inserts them into the cluster for 9 cities.
+The application creates the tables in the database, generates 100 users, 100 rides, and 10 vehicles and inserts them into the tables, for 9 different cities.
 
 To run a workload against the cluster, run the following command:
 
