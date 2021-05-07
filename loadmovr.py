@@ -49,12 +49,12 @@ def signal_handler(sig, frame):
     start = time.time()
     while threading.active_count() > 1:
         if (time.time() - start) > grace_period:
-            logging.info("grace period has passed. killing threads.")
+            logging.info("Grace period has passed. Killing threads.")
             os._exit(1)
         else:
             time.sleep(.1)
 
-    logging.info("shutting down gracefully.")
+    logging.info("Shutting down gracefully.")
     sys.exit(0)
 
 # Create a connection to the movr database and populate a set of cities with rides, vehicles, and users.
@@ -62,7 +62,7 @@ def signal_handler(sig, frame):
 
 def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_histories, num_promo_codes_per_thread, cities, echo_sql=False):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
-        raise ValueError("The number of objects to generate must be > 0")
+        raise ValueError("The number of objects to generate must be > 0.")
 
     start_time = time.time()
     with MovR(conn_string, echo=echo_sql) as movr:
@@ -70,7 +70,7 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
             conn_string, convert_unicode=True, echo=echo_sql)
         for city in cities:
             if TERMINATE_GRACEFULLY:
-                logging.debug("terminating")
+                logging.debug("Terminating...")
                 break
 
             logging.info("Generating user data for %s...", city)
@@ -81,7 +81,7 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
             add_rides(engine, num_rides, city)
             logging.info("Generating location history data for %s...", city)
             add_vehicle_location_histories(engine, num_histories, city)
-            logging.info("populated %s in %f seconds",
+            logging.info("Populated %s in %f seconds.",
                          city, time.time() - start_time)
 
         logging.info("Generating %s promo codes...",
@@ -93,20 +93,20 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
 # Generates evenly distributed load among the provided cities
 
 
-def simulate_movr_load(conn_string, multi_region, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql=False):
+def simulate_movr_load(conn_string, cities, movr_objects, active_rides, read_percentage, follower_reads, connection_duration_in_seconds, echo_sql=False):
 
     datagen = Faker()
     while True:
-        logging.debug("creating a new connection to %s, which will reset in %d seconds",
+        logging.debug("Creating a new connection to %s, which will reset in %d seconds.",
                       conn_string, connection_duration_in_seconds)
         try:
-            with MovR(conn_string, multi_region=multi_region, echo=echo_sql) as movr:
+            with MovR(conn_string, echo=echo_sql) as movr:
                 # refresh connections so load can balance among cluster nodes even if the cluster size changes
                 timeout = time.time() + connection_duration_in_seconds
                 while True:
 
                     if TERMINATE_GRACEFULLY:
-                        logging.debug("Terminating thread.")
+                        logging.debug("Terminating thread...")
                         return
 
                     if time.time() > timeout:
@@ -200,7 +200,7 @@ def simulate_movr_load(conn_string, multi_region, cities, movr_objects, active_r
                                 stats.add_latency_measurement(
                                     ACTION_END_RIDE, time.time() - start)
         except DBAPIError:
-            logging.error("lost connection to the db. sleeping for 10 seconds")
+            logging.error("Lost connection to the database. Sleeping for 10 seconds.")
             time.sleep(10)
 
 
@@ -220,33 +220,33 @@ def setup_parser():
     # GENERAL COMMANDS
     ##########
     parser.add_argument('--num-threads', dest='num_threads', type=int, default=5,
-                        help='The number threads to use for MovR (default =5)')
+                        help='The number threads to use for MovR. (default =5)')
     parser.add_argument('--log-level', dest='log_level', default='info',
                         help='The log level ([debug|info|warning|error]) for MovR messages. (default = info)')
     parser.add_argument('--app-name', dest='app_name', default='movr',
                         help='The name that can be used for filtering statements by client in the Admin UI.')
     parser.add_argument('--url', dest='conn_string', default='postgres://root@localhost:26257/movr?sslmode=disable',
-                        help="connection string to movr database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
+                        help="The connection string to the database. Default is 'postgres://root@localhost:26257/movr?sslmode=disable'")
     parser.add_argument('--echo-sql', dest='echo_sql', action='store_true',
-                        help='set this if you want to print all executed SQL statements')
+                        help='If set, the application prints all executed SQL statements.')
 
     ###############
     # LOAD COMMANDS
     ###############
     load_parser = subparsers.add_parser(
-        'load', help="Load data into an existing movr database.\nWARNING: The load command will reset any existing tables to a single-region configuration unless '--multi-region' is specified.\nTo keep the existing tables in the movr database, use the '--skip-init' flag.")
+        'load', help="Load data into an existing database.\nWARNING: This command will reset any existing tables to a single-region configuration unless '--multi-region' is specified.\nTo keep the existing tables in the movr database, use the '--skip-init' flag.")
     load_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
                              help='Load MovR data to a database with a multi-region schema. Useful for showing an app built from day-one for a global deployment. You can convert a single-region MovR to multi-region one using the "configure-multi-region" command.')
     load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
-                             help='The number of random users to add to the dataset')
+                             help='The number of random users to add to the dataset.')
     load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
-                             help='The number of random vehicles to add to the dataset')
+                             help='The number of random vehicles to add to the dataset.')
     load_parser.add_argument('--num-rides', dest='num_rides', type=int, default=500,
-                             help='The number of random rides to add to the dataset')
+                             help='The number of random rides to add to the dataset.')
     load_parser.add_argument('--num-histories', dest='num_histories', type=int, default=1000,
-                             help='The number of ride location histories to add to the dataset')
+                             help='The number of ride location histories to add to the dataset.')
     load_parser.add_argument('--num-promo-codes', dest='num_promo_codes', type=int, default=1000,
-                             help='The number of promo codes to add to the dataset')
+                             help='The number of promo codes to add to the dataset.')
     load_parser.add_argument('--city', dest='city', action='append',
                              help='Load random data for each of the cities specified. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
@@ -256,18 +256,16 @@ def setup_parser():
     # RUN COMMANDS
     ###############
     run_parser = subparsers.add_parser(
-        'run', help="generate fake traffic for the movr database")
-    run_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
-                            help='Run MovR workload against a database with a multi-region schema. Requires multi-region schema options.')
+        'run', help="Generate fake traffic to tables in an initialized database.")
     run_parser.add_argument('--connection-duration', dest='connection_duration_in_seconds', type=int,
                             help='The number of seconds to keep database connections alive before resetting them.',
                             default=30)
     run_parser.add_argument('--follower-reads', dest='follower_reads', action='store_true', default=False,
-                            help='Use the closest replica to serve fast, but slightly stale, read requests')
+                            help='Use the closest replica to serve fast, but slightly stale, read requests.')
     run_parser.add_argument('--city', dest='city', action='append',
                             help='The names of the cities to use when generating load. Use this flag multiple times to add multiple cities.')
     run_parser.add_argument('--read-only-percentage', dest='read_percentage', type=float,
-                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities',
+                            help='Value between 0-1 indicating how many simulated read-only home screen loads to perform as a percentage of overall activities.',
                             default=.95)
 
     ###################
@@ -275,14 +273,14 @@ def setup_parser():
     ###################
 
     scale_out_parser = subparsers.add_parser(
-        'configure-multi-region', help="perform online update to single-region schema to enable multi-region deployments.")
+        'configure-multi-region', help="Perform online schema change from a single-region schema to a multi-region schema.")
     scale_out_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
                              help='Pairs in the form <region>:<city_id> that will be used to assign cities to regions. Example: us_west:seattle. Use this flag multiple times to assign multiple cities.\nIf no region pairs are specified, the application will guess.')
     scale_out_parser.add_argument('--primary-region', dest='primary_region', type=str, default=None,
-                                  help='The primary region of the database')
+                                  help='The primary region of the database.')
     scale_out_parser.add_argument('--preview-queries', dest='preview_queries', action='store_true',
                                   default=False,
-                                  help='See commands to transform from single region to multi-region')
+                                  help='See commands to transform from single region to multi-region.')
 
     return parser
 
@@ -405,7 +403,7 @@ def add_vehicles(engine, num_vehicles, city):
 def run_data_loader(conn_string, multi_region, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
                     skip_reload_tables, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
-        raise ValueError("The number of objects to generate must be > 0")
+        raise ValueError("The number of objects to generate must be > 0.")
 
     start_time = time.time()
 
@@ -413,14 +411,14 @@ def run_data_loader(conn_string, multi_region, cities, num_users, num_rides, num
 
     with MovR(conn_string, multi_region=multi_region, reset_tables=(not skip_reload_tables), echo=echo_sql) as movr:
 
-        logging.info("loading cities %s", cities)
-        logging.info("loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes",
+        logging.info("Loading cities %s.", cities)
+        logging.info("Loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes.",
                      num_users, num_vehicles, num_rides, num_histories, num_promo_codes)
 
     # don't create more than 1 thread per city
     usable_threads = min(num_threads, len(cities))
     if usable_threads < num_threads:
-        logging.info("Only using %d of %d requested threads, since we only create at most one thread per city",
+        logging.info("Only using %d of %d requested threads, since we only create at most one thread per city.",
                      usable_threads, num_threads)
 
     num_users_per_city = int(math.ceil(float(num_users) / len(cities)))
@@ -450,38 +448,38 @@ def run_data_loader(conn_string, multi_region, cities, num_users, num_rides, num
 
     duration = time.time() - start_time
 
-    logging.info("populated %s cities in %f seconds",
+    logging.info("Populated %s cities in %f seconds.",
                  original_city_count, duration)
 
 # generate fake load for objects within the provided city list
 
 
-def run_load_generator(conn_string, multi_region, read_percentage, connection_duration_in_seconds, city_list, follower_reads, echo_sql, num_threads):
+def run_load_generator(conn_string, read_percentage, connection_duration_in_seconds, city_list, follower_reads, echo_sql, num_threads):
     if read_percentage < 0 or read_percentage > 1:
-        raise ValueError("read percentage must be between 0 and 1")
+        raise ValueError("Read percentage must be between 0 and 1.")
 
-    logging.info("simulating movr load for cities %s", city_list)
+    logging.info("Simulating movr load for cities %s.", city_list)
 
     movr_objects = {"local": {}, "global": {}}
 
-    logging.info("warming up....")
-    with MovR(conn_string, multi_region=multi_region, echo=echo_sql) as movr:
+    logging.info("Warming up....")
+    with MovR(conn_string, echo=echo_sql) as movr:
         active_rides = []
         for city in city_list:
             movr_objects["local"][city] = {"users": movr.get_users(
                 city, follower_reads), "vehicles": movr.get_vehicles(city, follower_reads)}
             if len(list(movr_objects["local"][city]["vehicles"])) == 0 or len(list(movr_objects["local"][city]["users"])) == 0:
                 logging.error(
-                    "must have users and vehicles for city '%s' in the movr database to generate load. try running with the 'load' command.", city)
+                    "Must have users and vehicles for city '%s' in the database to generate load. Try running with the 'load' command.", city)
                 sys.exit(1)
 
             active_rides.extend(movr.get_active_rides(city, follower_reads))
         movr_objects["global"]["promo_codes"] = movr.get_promo_codes()
 
     RUNNING_THREADS = []
-    logging.info("running single region queries...") if not multi_region else logging.info("running multi-region queries...")
+    logging.info("Running queries...")
     for i in range(num_threads):
-        t = threading.Thread(target=simulate_movr_load, args=(conn_string, multi_region, city_list, movr_objects,
+        t = threading.Thread(target=simulate_movr_load, args=(conn_string, city_list, movr_objects,
                                                               active_rides, read_percentage, follower_reads,
                                                               connection_duration_in_seconds, echo_sql))
         t.start()
@@ -626,9 +624,9 @@ if __name__ == '__main__':
                 movr.run_multi_region_transformations(region_map)
 
     elif args.subparser_name == "run":
-        run_load_generator(conn_string, multi_region=args.multi_region, read_percentage=args.read_percentage, connection_duration_in_seconds=args.connection_duration_in_seconds,
+        run_load_generator(conn_string, read_percentage=args.read_percentage, connection_duration_in_seconds=args.connection_duration_in_seconds,
                            city_list=get_city_list(args.city), follower_reads=args.follower_reads, echo_sql=args.echo_sql, num_threads=args.num_threads)
     else:
-        run_load_generator(conn_string, multi_region=args.multi_region, read_percentage=DEFAULT_READ_PERCENTAGE,
+        run_load_generator(conn_string, read_percentage=DEFAULT_READ_PERCENTAGE,
                            connection_duration_in_seconds=60, city_list=get_city_list(None),
                            follower_reads=False, echo_sql=args.echo_sql, num_threads=args.num_threads)

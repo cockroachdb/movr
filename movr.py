@@ -45,22 +45,18 @@ class MovR:
     def start_ride(self, city, rider_id, vehicle_id):
 
         def start_ride_helper(session, city, rider_id, vehicle_id):
-            vehicle = session.query(Vehicle).filter_by(
-                city=city, id=vehicle_id) if self.multi_region else session.query(Vehicle).filter_by(id=vehicle_id)
+            vehicle = session.query(Vehicle).filter_by(id=vehicle_id)
             vehicle.update({'status': 'in_use'})
             v = vehicle.first()
             # get promo codes associated with this user's account
-            upcs = session.query(UserPromoCode).filter_by(city=city, user_id=rider_id).all(
-            ) if self.multi_region else session.query(UserPromoCode).filter_by(user_id=rider_id).all()
+            upcs = session.query(UserPromoCode).filter_by(user_id=rider_id).all()
 
             # determine which codes are valid
             for upc in upcs:
                 promo_code = session.query(
                     PromoCode).filter_by(code=upc.code).first()
                 if promo_code and promo_code.expiration_time > datetime.datetime.now():
-                    code_to_update = session.query(UserPromoCode).filter_by(city=city,
-                                                                            user_id=rider_id, code=upc.code) if self.multi_region else session.query(
-                        UserPromoCode).filter_by(user_id=rider_id, code=upc.code)
+                    code_to_update = session.query(UserPromoCode).filter_by(user_id=rider_id, code=upc.code)
                     code_to_update.update({'usage_count': upc.usage_count+1})
 
             r = Ride(city=city, id=MovRGenerator.generate_uuid(),
@@ -76,11 +72,9 @@ class MovR:
     def end_ride(self, city, ride_id):
 
         def end_ride_helper(session, city, ride_id):
-            ride = session.query(Ride).filter_by(
-                city=city, id=ride_id) if self.multi_region else session.query(Ride).filter_by(id=ride_id)
+            ride = session.query(Ride).filter_by(id=ride_id)
             r = ride.first()
-            vehicle = session.query(Vehicle).filter_by(
-                city=city, id=r.vehicle_id) if self.multi_region else session.query(Vehicle).filter_by(id=r.vehicle_id)
+            vehicle = session.query(Vehicle).filter_by(id=r.vehicle_id)
             vehicle.update({'status': 'available'})
             v = vehicle.first()
             ride.update({'end_address': v.current_location, 'revenue': MovRGenerator.generate_revenue(),
@@ -189,8 +183,7 @@ class MovR:
             pc = session.query(PromoCode).filter_by(code=code).one_or_none()
             if pc:
                 # see if it has already been applied
-                upc = session.query(UserPromoCode).filter_by(city=user_city, user_id=user_id, code=code).one_or_none(
-                ) if self.multi_region else session.query(UserPromoCode).filter_by(user_id=user_id, code=code).one_or_none()
+                upc = session.query(UserPromoCode).filter_by(user_id=user_id, code=code).one_or_none()
                 if not upc:
                     upc = UserPromoCode(
                         city=user_city, user_id=user_id, code=code)
@@ -305,9 +298,9 @@ class MovR:
         return queries
 
     def run_multi_region_transformations(self, region_map):
-        logging.info("constructing multi-region schema change statements.")
+        logging.info("Constructing multi-region schema change statements.")
         queries_to_run = self.get_multi_region_transformations(region_map)
         logging.info(
-            "applying multi-region schema changes (this may take a few minutes).")
+            "Applying multi-region schema changes (this may take a few minutes).")
         self.run_queries_in_separate_transactions(queries_to_run)
-        logging.info("done.")
+        logging.info("Done.")
