@@ -1,18 +1,13 @@
 
 from sqlalchemy.ext.declarative import declarative_base
-#from sqlalchemy.orm import relationship
 from sqlalchemy import Column, String, DateTime, Integer, Float, \
-    PrimaryKeyConstraint, ForeignKeyConstraint, CheckConstraint
+    PrimaryKeyConstraint, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-import sqlalchemy.types as types
+from sqlalchemy.types import DECIMAL
 
 import datetime
 
 from generators import MovRGenerator
-
-# @todo: restore FKs and "relationship' functionality after this is fixed: https://github.com/cockroachdb/cockroach/issues/36859
-
-# default to the single region schema and dynamically make multi-region based on command line args.
 
 Base = declarative_base()
 
@@ -20,7 +15,7 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
-    city = Column(String, nullable=False, index=True)
+    city = Column(String, nullable=False)
     name = Column(String)
     address = Column(String)
     credit_card = Column(String)
@@ -28,20 +23,17 @@ class User(Base):
     def __repr__(self):
         return "<User(city='%s', id='%s', name='%s')>" % (self.city, self.id, self.name)
 
-# @todo: sqlalchemy fails silently if compound fks are in the wrong order.
-
-
 class Ride(Base):
     __tablename__ = 'rides'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
-    city = Column(String, nullable=False, index=True)
+    city = Column(String, nullable=False)
     rider_id = Column(UUID)
     vehicle_id = Column(UUID)
     start_address = Column(String)
     end_address = Column(String)
     start_time = Column(DateTime, default=datetime.datetime.now)
     end_time = Column(DateTime)
-    revenue = Column(types.DECIMAL(10, 2))
+    revenue = Column(DECIMAL(10, 2))
     __table_args__ = (ForeignKeyConstraint(
         [rider_id], ["users.id"], name='fk_rider_id_ref_users'),)
     __table_args__ = (ForeignKeyConstraint(
@@ -70,7 +62,7 @@ class VehicleLocationHistory(Base):
 class Vehicle(Base):
     __tablename__ = 'vehicles'
     id = Column(UUID, primary_key=True, default=MovRGenerator.generate_uuid)
-    city = Column(String, nullable=False, index=True)
+    city = Column(String, nullable=False)
     type = Column(String)
     owner_id = Column(UUID)
     creation_time = Column(DateTime, default=datetime.datetime.now)
@@ -79,7 +71,6 @@ class Vehicle(Base):
     ext = Column(JSONB)
     __table_args__ = (ForeignKeyConstraint(
         [owner_id], ["users.id"], name='fk_owner_id_ref_users'),)
-    # check performance since removing indexes
 
     def __repr__(self):
         return "<Vehicle(city='%s', id='%s', type='%s', status='%s', ext='%s')>" % (self.city, self.id, self.type, self.status, self.ext)
