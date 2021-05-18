@@ -553,7 +553,7 @@ def assign_regions(cities, regions, primary_region, region_pairs=None):
                         region_map[region].append(city)
                         unpaired_cities.remove(city)
     if len(unpaired_cities) > 0:
-        print("Unable to map {0} to a region. Assigning to the primary region {1}.".format(unpaired_cities, primary_region))
+        logging.info("Unable to map {0} to a region. Assigning to the primary region {1}.".format(unpaired_cities, primary_region))
         region_map[primary_region].extend(unpaired_cities)
     return region_map
 
@@ -613,7 +613,7 @@ if __name__ == '__main__':
             if cities is None:
                 logging.error("To configure your database for multi-region features, the database must have rows of data with city values.")
                 sys.exit(1)
-            region_map = assign_regions(cities, regions, args.primary_region, args.region_city_pair)
+            region_map = assign_regions(cities, regions, movr.primary_region, args.region_city_pair)
             if args.preview_queries:
                 queries = movr.get_multi_region_transformations(region_map)
                 print("DDL to convert a single region database to multi-region")

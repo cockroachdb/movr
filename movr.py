@@ -24,7 +24,12 @@ class MovR:
         self.engine = create_engine(
             conn_string, convert_unicode=True, echo=echo)
         self.session = sessionmaker(bind=self.engine)()
-        self.primary_region = primary_region
+        if primary_region is None:
+            regions = self.get_regions()
+            logging.info("No primary region provided. Setting the primary region to {0}.".format(regions[0]))
+            self.primary_region = regions[0]
+        else:
+            self.primary_region = primary_region
         self.multi_region = multi_region
 
         if reset_tables:
@@ -254,21 +259,13 @@ class MovR:
         # See https://docs.sqlalchemy.org/en/14/core/metadata.html#altering-database-objects-through-migrations
 
         # Alter database statements
-        regions = self.get_regions()
-
-        if self.primary_region is None:
-            self.primary_region = regions[0]
-        elif self.primary_region not in regions:
-            logging.error("{0} must exist as a cluster locality in order to be a primary region.".format(
-                self.primary_region))
-            sys.exit(1)
-
         db_name = self.get_database_name()
 
         add_primary_region_query = 'ALTER DATABASE {0} PRIMARY REGION "{1}"'.format(
             db_name, self.primary_region)
         add_primary_region_query = text(add_primary_region_query)
 
+        regions = list(region_map.keys())
         add_region_queries = []
         for region in regions:
             if region != self.primary_region:
