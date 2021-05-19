@@ -24,13 +24,12 @@ class MovR:
         self.engine = create_engine(
             conn_string, convert_unicode=True, echo=echo)
         self.session = sessionmaker(bind=self.engine)()
-        if primary_region is None:
+        if multi_region is True and primary_region is None:
             regions = self.get_regions()
-            logging.info("No primary region provided. Setting the primary region to {0}.".format(regions[0]))
+            logging.info("Setting the primary region to {0}.".format(regions[0]))
             self.primary_region = regions[0]
         else:
             self.primary_region = primary_region
-        self.multi_region = multi_region
 
         if reset_tables:
             logging.info("Reseting database...")
@@ -41,8 +40,6 @@ class MovR:
             Base.metadata.create_all(bind=self.engine)
             logging.debug("Tables dropped.")
             logging.debug("Database reset complete.")
-            if multi_region:
-                self.run_multi_region_transformations()
 
     ##################
     # MAIN MOVR API
