@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, Column, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.sql import column
 from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
 from cockroachdb.sqlalchemy import run_transaction
 from generators import MovRGenerator
@@ -49,14 +50,16 @@ class MovR:
             vehicle.update({'status': 'in_use'})
             v = vehicle.first()
             # get promo codes associated with this user's account
-            upcs = session.query(UserPromoCode).filter_by(user_id=rider_id).all()
+            upcs = session.query(UserPromoCode).filter_by(
+                user_id=rider_id).all()
 
             # determine which codes are valid
             for upc in upcs:
                 promo_code = session.query(
                     PromoCode).filter_by(code=upc.code).first()
                 if promo_code and promo_code.expiration_time > datetime.datetime.now():
-                    code_to_update = session.query(UserPromoCode).filter_by(user_id=rider_id, code=upc.code)
+                    code_to_update = session.query(UserPromoCode).filter_by(
+                        user_id=rider_id, code=upc.code)
                     code_to_update.update({'usage_count': upc.usage_count+1})
 
             r = Ride(city=city, id=MovRGenerator.generate_uuid(),
@@ -183,7 +186,8 @@ class MovR:
             pc = session.query(PromoCode).filter_by(code=code).one_or_none()
             if pc:
                 # see if it has already been applied
-                upc = session.query(UserPromoCode).filter_by(user_id=user_id, code=code).one_or_none()
+                upc = session.query(UserPromoCode).filter_by(
+                    user_id=user_id, code=code).one_or_none()
                 if not upc:
                     upc = UserPromoCode(
                         city=user_city, user_id=user_id, code=code)
@@ -193,11 +197,13 @@ class MovR:
                         lambda session: apply_promo_code_helper(session, user_city, user_id, promo_code))
 
     def get_database_name(self):
-        db_name = self.session.execute(text('SELECT current_database()')).first()[0]
+        db_name = self.session.execute(
+            text('SELECT current_database()')).first()[0]
         return str(db_name)
 
     def get_regions(self):
-        region_tups = self.session.execute(text('SELECT region FROM [SHOW REGIONS]')).fetchall()
+        region_tups = self.session.execute(
+            text('SELECT region FROM [SHOW REGIONS]')).fetchall()
         return list(tup[0] for tup in region_tups)
 
     def get_cities(self, follower_reads=False):
@@ -211,6 +217,18 @@ class MovR:
 
         return run_transaction(sessionmaker(bind=self.engine),
                                lambda session: get_cities_helper(session, follower_reads))
+
+    def update_region(self, table, region, cities):
+
+        def update_region_helper(session, table, region, cities):
+            crdb_region = Column('crdb_region', String)
+            table.append_column(crdb_region)
+            query = table.update().where(column('city').in_(cities)
+                                         ).values({crdb_region: region})
+            session.execute(query)
+
+        run_transaction(sessionmaker(bind=self.engine),
+                        lambda session: update_region_helper(session, table, region, cities))
 
     def run_queries_in_separate_transactions(self, queries):
         for query in queries:
@@ -241,47 +259,29 @@ class MovR:
         if self.primary_region is None:
             self.primary_region = regions[0]
         elif self.primary_region not in regions:
-            logging.error("{0} must exist as a cluster locality in order to be a primary region.".format(self.primary_region))
+            logging.error("{0} must exist as a cluster locality in order to be a primary region.".format(
+                self.primary_region))
             sys.exit(1)
 
         db_name = self.get_database_name()
 
-        add_primary_region_query = 'ALTER DATABASE {0} PRIMARY REGION "{1}"'.format(db_name, self.primary_region)
+        add_primary_region_query = 'ALTER DATABASE {0} PRIMARY REGION "{1}"'.format(
+            db_name, self.primary_region)
         add_primary_region_query = text(add_primary_region_query)
 
         add_region_queries = []
         for region in regions:
             if region != self.primary_region:
-                add_region_query = 'ALTER DATABASE {0} ADD REGION "{1}"'.format(db_name, region)
+                add_region_query = 'ALTER DATABASE {0} ADD REGION "{1}"'.format(
+                    db_name, region)
                 add_region_query = text(add_region_query)
                 add_region_queries.append(add_region_query)
 
         # Alter table statements
-        tables = []
-        table_tups = self.session.execute(
-            text('SELECT table_name FROM [SHOW TABLES]')).fetchall()
-        for tup in table_tups:
-            tables.append(tup[0])
-        add_region_column_queries = []
-        not_null_region_column_queries = []
         set_locality_regional_queries = []
-        for table in tables:
+        for table in Base.metadata.tables:
             if table != 'promo_codes':
-                cases_when = ''
-                for region in regions:
-                    cities = tuple(region_map[region])
-                    case_when_city = 'WHEN city IN {0} THEN \'{1}\' '.format(
-                        cities, region)
-                    cases_when = cases_when + case_when_city
-                region_query = 'ALTER TABLE {0} ADD COLUMN region crdb_internal_region AS (CASE {1} END) STORED'.format(
-                    table, cases_when)
-                region_query = text(region_query)
-                add_region_column_queries.append(region_query)
-                not_null_query = 'ALTER TABLE {0} ALTER COLUMN region SET NOT NULL'.format(
-                    table)
-                not_null_query = text(not_null_query)
-                not_null_region_column_queries.append(not_null_query)
-                locality_query = 'ALTER TABLE {0} SET LOCALITY REGIONAL BY ROW AS "region"'.format(
+                locality_query = 'ALTER TABLE {0} SET LOCALITY REGIONAL BY ROW'.format(
                     table)
                 locality_query = text(locality_query)
                 set_locality_regional_queries.append(locality_query)
@@ -289,10 +289,9 @@ class MovR:
         set_locality_global_query = text(
             'ALTER TABLE promo_codes SET LOCALITY GLOBAL')
 
-        queries = [add_primary_region_query, set_locality_global_query]
+        queries = [add_primary_region_query]
         queries.extend(add_region_queries)
-        queries.extend(add_region_column_queries)
-        queries.extend(not_null_region_column_queries)
+        queries.append(set_locality_global_query)
         queries.extend(set_locality_regional_queries)
 
         return queries
@@ -303,4 +302,19 @@ class MovR:
         logging.info(
             "Applying multi-region schema changes (this may take a few minutes).")
         self.run_queries_in_separate_transactions(queries_to_run)
-        logging.info("Done.")
+        logging.info("Schema changes complete.")
+        for table in Base.metadata.tables.values():
+            if table != 'promo_codes' and self.session.query(table).first():
+                logging.info("Updating row regions in {0}.".format(table))
+                for region in region_map:
+                    try:
+                        self.update_region(table, region, region_map[region])
+                    except ProgrammingError as err:
+                        if 'UndefinedColumn' in str(err):
+                            logging.info(
+                                "Skipping {0}, as this table does not have a column for region mapping.".format(table))
+                            continue
+                        else:
+                            raise err
+                logging.info("{0} region rows updated.".format(table))
+        logging.info("Row region updates complete.")
