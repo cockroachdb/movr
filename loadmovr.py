@@ -512,7 +512,6 @@ def configure_multi_region(conn_string, primary_region, city_list, region_city_p
         region_map = assign_regions(cities, regions, movr.primary_region, region_city_pair)
         if preview:
             queries = movr.get_multi_region_transformations(region_map)
-            print("DDL to convert a single region database to multi-region")
             for query in queries:
                 print(query)
             sys.exit(0)

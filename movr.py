@@ -32,14 +32,14 @@ class MovR:
             self.primary_region = primary_region
 
         if reset_tables:
-            logging.info("Reseting database...")
-            logging.info("Dropping existing tables...")
-            Base.metadata.drop_all(bind=self.engine)
-            logging.debug("Tables dropped.")
+            if self.engine.table_names():
+                logging.info("Reseting database...")
+                logging.info("Dropping existing tables...")
+                Base.metadata.drop_all(bind=self.engine)
+                logging.info("Tables dropped.")
             logging.info("Initializing tables...")
             Base.metadata.create_all(bind=self.engine)
-            logging.debug("Tables dropped.")
-            logging.debug("Database reset complete.")
+            logging.info("Tables initialized.")
 
     ##################
     # MAIN MOVR API
@@ -298,8 +298,8 @@ class MovR:
         self.run_queries_in_separate_transactions(queries_to_run)
         logging.info("Schema changes complete.")
         for table in Base.metadata.tables.values():
-            if table != 'promo_codes' and self.session.query(table).first():
-                logging.info("Updating row regions in {0}.".format(table))
+            if self.session.query(table).first():
+                logging.info("Updating the crdb_region value for existing rows in {0}...".format(table))
                 for region in region_map:
                     try:
                         self.update_region(table, region, region_map[region])
@@ -307,8 +307,7 @@ class MovR:
                         if 'UndefinedColumn' in str(err):
                             logging.info(
                                 "Skipping {0}, as this table does not have a column for region mapping.".format(table))
-                            continue
+                            break
                         else:
                             raise err
-                logging.info("{0} region rows updated.".format(table))
-        logging.info("Row region updates complete.")
+        logging.info("Row updates complete.")
