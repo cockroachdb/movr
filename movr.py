@@ -24,20 +24,22 @@ class MovR:
         self.engine = create_engine(
             conn_string, convert_unicode=True, echo=echo)
         self.session = sessionmaker(bind=self.engine)()
-        self.primary_region = primary_region
-        self.multi_region = multi_region
+        if multi_region is True and primary_region is None:
+            regions = self.get_regions()
+            logging.info("Setting the primary region to {0}.".format(regions[0]))
+            self.primary_region = regions[0]
+        else:
+            self.primary_region = primary_region
 
         if reset_tables:
-            logging.info("Reseting database...")
-            logging.info("Dropping existing tables...")
-            Base.metadata.drop_all(bind=self.engine)
-            logging.debug("Tables dropped.")
+            if self.engine.table_names():
+                logging.info("Reseting database...")
+                logging.info("Dropping existing tables...")
+                Base.metadata.drop_all(bind=self.engine)
+                logging.info("Tables dropped.")
             logging.info("Initializing tables...")
             Base.metadata.create_all(bind=self.engine)
-            logging.debug("Tables dropped.")
-            logging.debug("Database reset complete.")
-            if multi_region:
-                self.run_multi_region_transformations()
+            logging.info("Tables initialized.")
 
     ##################
     # MAIN MOVR API
@@ -254,21 +256,13 @@ class MovR:
         # See https://docs.sqlalchemy.org/en/14/core/metadata.html#altering-database-objects-through-migrations
 
         # Alter database statements
-        regions = self.get_regions()
-
-        if self.primary_region is None:
-            self.primary_region = regions[0]
-        elif self.primary_region not in regions:
-            logging.error("{0} must exist as a cluster locality in order to be a primary region.".format(
-                self.primary_region))
-            sys.exit(1)
-
         db_name = self.get_database_name()
 
         add_primary_region_query = 'ALTER DATABASE {0} PRIMARY REGION "{1}"'.format(
             db_name, self.primary_region)
         add_primary_region_query = text(add_primary_region_query)
 
+        regions = list(region_map.keys())
         add_region_queries = []
         for region in regions:
             if region != self.primary_region:
@@ -304,8 +298,8 @@ class MovR:
         self.run_queries_in_separate_transactions(queries_to_run)
         logging.info("Schema changes complete.")
         for table in Base.metadata.tables.values():
-            if table != 'promo_codes' and self.session.query(table).first():
-                logging.info("Updating row regions in {0}.".format(table))
+            if self.session.query(table).first():
+                logging.info("Updating the crdb_region value for existing rows in {0}...".format(table))
                 for region in region_map:
                     try:
                         self.update_region(table, region, region_map[region])
@@ -313,8 +307,7 @@ class MovR:
                         if 'UndefinedColumn' in str(err):
                             logging.info(
                                 "Skipping {0}, as this table does not have a column for region mapping.".format(table))
-                            continue
+                            break
                         else:
                             raise err
-                logging.info("{0} region rows updated.".format(table))
-        logging.info("Row region updates complete.")
+        logging.info("Row updates complete.")

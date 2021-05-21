@@ -235,8 +235,6 @@ def setup_parser():
     ###############
     load_parser = subparsers.add_parser(
         'load', help="Load data into an existing database.\nWARNING: This command will reset any existing tables to a single-region configuration unless '--multi-region' is specified.\nTo keep the existing tables in the movr database, use the '--skip-init' flag.")
-    load_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
-                             help='Load MovR data to a database with a multi-region schema. Useful for showing an app built from day-one for a global deployment. You can convert a single-region MovR to multi-region one using the "configure-multi-region" command.')
     load_parser.add_argument('--num-users', dest='num_users', type=int, default=50,
                              help='The number of random users to add to the dataset.')
     load_parser.add_argument('--num-vehicles', dest='num_vehicles', type=int, default=10,
@@ -251,6 +249,10 @@ def setup_parser():
                              help='Load random data for each of the cities specified. Use this flag multiple times to add multiple cities.')
     load_parser.add_argument('--skip-init', dest='skip_reload_tables', action='store_true',
                              help='Keep the existing tables in the movr database.')
+    load_parser.add_argument('--multi-region', dest='multi_region', action='store_true', default=False,
+                             help='Load MovR data to a database with a multi-region schema. Useful for showing an app built from day-one for a global deployment. You can convert a single-region MovR to multi-region one using the "configure-multi-region" command.')
+    load_parser.add_argument('--region-city-pair', dest='region_city_pair', action='append',
+                             help='Pairs in the form <region>:<city_id> that will be used to assign cities to regions. Example: us_west:seattle. Use this flag multiple times to assign multiple cities.\nIf no region pairs are specified, the application will guess.')
 
     ###############
     # RUN COMMANDS
@@ -400,7 +402,7 @@ def add_vehicles(engine, num_vehicles, city):
                         lambda s: add_vehicles_helper(s, chunk, min(chunk + chunk_size, num_vehicles)))
 
 
-def run_data_loader(conn_string, multi_region, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
+def run_data_loader(conn_string, cities, num_users, num_rides, num_vehicles, num_histories, num_promo_codes, num_threads,
                     skip_reload_tables, echo_sql):
     if num_users <= 0 or num_rides <= 0 or num_vehicles <= 0:
         raise ValueError("The number of objects to generate must be > 0.")
@@ -409,7 +411,7 @@ def run_data_loader(conn_string, multi_region, cities, num_users, num_rides, num
 
     logging.info("Loading MovR")
 
-    with MovR(conn_string, multi_region=multi_region, reset_tables=(not skip_reload_tables), echo=echo_sql) as movr:
+    with MovR(conn_string, reset_tables=(not skip_reload_tables), echo=echo_sql) as movr:
 
         logging.info("Loading cities %s.", cities)
         logging.info("Loading movr data with ~%d users, ~%d vehicles, ~%d rides, ~%d histories, and ~%d promo codes.",
@@ -494,6 +496,32 @@ def run_load_generator(conn_string, read_percentage, connection_duration_in_seco
 
         stats.new_window()
 
+def configure_multi_region(conn_string, primary_region, city_list, region_city_pair, echo_sql, preview):
+
+    start_time = time.time()
+
+    with MovR(conn_string, primary_region=primary_region, multi_region=True, echo=echo_sql) as movr:
+        regions = movr.get_regions()
+        cities = movr.get_cities(city_list)
+        if regions is None:
+            logging.error("To configure your database for multi-region features, you must specify cluster regions at startup.")
+            sys.exit(1)
+        if cities is None:
+            logging.error("To configure your database for multi-region features, the database must have rows of data with city values.")
+            sys.exit(1)
+        region_map = assign_regions(cities, regions, movr.primary_region, region_city_pair)
+        if preview:
+            queries = movr.get_multi_region_transformations(region_map)
+            for query in queries:
+                print(query)
+            sys.exit(0)
+        else:
+            movr.run_multi_region_transformations(region_map)
+
+    duration = time.time() - start_time
+
+    logging.info("Configured multi-region schema in {0} seconds.".format(duration))
+
 DEFAULT_REGION_MAP = {
         'us_east': ['new york', 'boston', 'washington dc'],
         'us_west': ['san francisco', 'seattle', 'los angeles'],
@@ -553,7 +581,7 @@ def assign_regions(cities, regions, primary_region, region_pairs=None):
                         region_map[region].append(city)
                         unpaired_cities.remove(city)
     if len(unpaired_cities) > 0:
-        print("Unable to map {0} to a region. Assigning to the primary region {1}.".format(unpaired_cities, primary_region))
+        logging.info("Unable to map {0} to a region. Assigning to the primary region {1}.".format(unpaired_cities, primary_region))
         region_map[primary_region].extend(unpaired_cities)
     return region_map
 
@@ -598,30 +626,18 @@ if __name__ == '__main__':
         conn_string, "application_name", args.app_name)
 
     if args.subparser_name == 'load':
-
-        run_data_loader(conn_string, multi_region=args.multi_region, cities=get_city_list(args.city), num_users=args.num_users, num_rides=args.num_rides, num_vehicles=args.num_vehicles, num_histories=args.num_histories,
-                        num_promo_codes=args.num_promo_codes, num_threads=args.num_threads,
+        city_list = get_city_list(args.city)
+        run_data_loader(conn_string, cities=city_list, 
+                        num_users=args.num_users, num_rides=args.num_rides, num_vehicles=args.num_vehicles, 
+                        num_histories=args.num_histories, num_promo_codes=args.num_promo_codes, num_threads=args.num_threads,
                         skip_reload_tables=args.skip_reload_tables, echo_sql=args.echo_sql)
+        
+        if args.multi_region:
+            configure_multi_region(conn_string, primary_region=None, city_list=city_list, region_city_pair=args.region_city_pair, echo_sql=args.echo_sql, preview=False)
 
     elif args.subparser_name == "configure-multi-region":
-        with MovR(conn_string, primary_region=args.primary_region, echo=args.echo_sql) as movr:
-            regions = movr.get_regions()
-            cities = movr.get_cities()
-            if regions is None:
-                logging.error("To configure your database for multi-region features, you must specify cluster regions at startup.")
-                sys.exit(1)
-            if cities is None:
-                logging.error("To configure your database for multi-region features, the database must have rows of data with city values.")
-                sys.exit(1)
-            region_map = assign_regions(cities, regions, args.primary_region, args.region_city_pair)
-            if args.preview_queries:
-                queries = movr.get_multi_region_transformations(region_map)
-                print("DDL to convert a single region database to multi-region")
-                for query in queries:
-                    print(query)
-                sys.exit(0)
-            else:
-                movr.run_multi_region_transformations(region_map)
+
+        configure_multi_region(conn_string, primary_region=args.primary_region, city_list=None, region_city_pair=args.region_city_pair, echo_sql=args.echo_sql, preview=args.preview_queries)
 
     elif args.subparser_name == "run":
         run_load_generator(conn_string, read_percentage=args.read_percentage, connection_duration_in_seconds=args.connection_duration_in_seconds,
