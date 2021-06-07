@@ -1,5 +1,5 @@
 
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, DateTime, Integer, Float, \
     PrimaryKeyConstraint, ForeignKeyConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB

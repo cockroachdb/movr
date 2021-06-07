@@ -15,7 +15,7 @@ import re
 import logging
 from faker import Faker
 from models import User, Vehicle, Ride, VehicleLocationHistory, PromoCode
-from cockroachdb.sqlalchemy import run_transaction
+from sqlalchemy_cockroachdb import run_transaction
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
@@ -67,7 +67,7 @@ def load_movr_data(conn_string, num_users, num_vehicles, num_rides, num_historie
     start_time = time.time()
     with MovR(conn_string, echo=echo_sql) as movr:
         engine = create_engine(
-            conn_string, convert_unicode=True, echo=echo_sql)
+            conn_string, echo=echo_sql)
         for city in cities:
             if TERMINATE_GRACEFULLY:
                 logging.debug("Terminating...")
@@ -594,7 +594,7 @@ if __name__ == '__main__':
 
     args = setup_parser().parse_args()
 
-    if not re.search('.*://.*/(.*)\?', args.conn_string):
+    if not re.search(r'.*://.*/(.*)\?', args.conn_string):
         logging.error(
             "The connection string needs to point to a database. Example: postgres://root@localhost:26257/mymovrdatabase?sslmode=disable")
         sys.exit(1)

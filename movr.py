@@ -1,9 +1,9 @@
-from sqlalchemy import create_engine, text, Column, String
+from sqlalchemy import create_engine, inspect, text, Column, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.sql import column
 from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
-from cockroachdb.sqlalchemy import run_transaction
+from sqlalchemy_cockroachdb import run_transaction
 from generators import MovRGenerator
 import sys
 
@@ -22,7 +22,7 @@ class MovR:
     def __init__(self, conn_string, reset_tables=False, multi_region=False, primary_region=None, echo=False):
 
         self.engine = create_engine(
-            conn_string, convert_unicode=True, echo=echo)
+            conn_string, echo=echo)
         self.session = sessionmaker(bind=self.engine)()
         if multi_region is True and primary_region is None:
             regions = self.get_regions()
@@ -32,8 +32,9 @@ class MovR:
             self.primary_region = primary_region
 
         if reset_tables:
-            if self.engine.table_names():
-                logging.info("Reseting database...")
+            insp = inspect(self.engine)
+            if insp.get_table_names():
+                logging.info("Resetting database...")
                 logging.info("Dropping existing tables...")
                 Base.metadata.drop_all(bind=self.engine)
                 logging.info("Tables dropped.")
