@@ -7,7 +7,7 @@ This repo contains the source code for the Python implementation of the MovR wor
 To use the load generator:
 
 - You can clone this repo and run it directly from your local machine (e.g., `python3 loadmovr.py [commands]`)
-- Or, you can pull a pre-built image from Docker Hub (e.g., `docker run -it --rm cockroachdb/movr:21.1.0 [commands]`). 
+- Or, you can pull a pre-built image from Docker Hub (e.g., `docker run -it --rm cockroachdb/movr [commands]`). 
 
 For usage details and a brief tutorial, see below.
 
@@ -61,7 +61,7 @@ After you start a cluster and create a database in the cluster, you can use the 
 Open a new terminal, and use the application's `load` command against the demo cluster:
 
 ```
-$ docker run -it --rm cockroachdb/movr:21.1.0 --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10 --city="boston" --city="new york" --city="washington dc" --city="los angeles" --city="san francisco" --city="seattle" --city="amsterdam" --city="paris" --city="rome"
+$ docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" load --num-users 100 --num-rides 100 --num-vehicles 10 --city="boston" --city="new york" --city="washington dc" --city="los angeles" --city="san francisco" --city="seattle" --city="amsterdam" --city="paris" --city="rome"
 ```
 
 The application creates the tables in the database, generates 100 users, 100 rides, and 10 vehicles, and inserts them into the tables, for the 9 different cities specified.
@@ -71,7 +71,7 @@ The application creates the tables in the database, generates 100 users, 100 rid
 To run a workload against the cluster, use the application's `run` command:
 
 ```
-$ docker run -it --rm cockroachdb/movr:21.1.0 --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" run --city "new york" --city "boston"  --city="washington dc"
+$ docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" run --city "new york" --city "boston"  --city="washington dc"
 ```
 
 The application starts a fake-traffic workload against the database, with `"new york"`, `"boston"`, and `"washington dc"` as `city` values for all of the rows of data.
@@ -114,13 +114,13 @@ For example:
 (US West)
 
 ```
-$ docker run -it --rm cockroachdb/movr:21.1.0 --url "postgres://root@docker.for.mac.localhost:26260/movr?sslmode=disable" run --city "los angeles" --city="san francisco" --city "seattle"
+$ docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26260/movr?sslmode=disable" run --city "los angeles" --city="san francisco" --city "seattle"
 ```
 
 (EU West)
 
 ```
-$ docker run -it --rm cockroachdb/movr:21.1.0 --url "postgres://root@docker.for.mac.localhost:26263/movr?sslmode=disable" run --city="amsterdam" --city="paris" --city="rome"
+$ docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26263/movr?sslmode=disable" run --city="amsterdam" --city="paris" --city="rome"
 ```
 
 If you already have a workload running against the nodes in the US East locality, then you now have three generators, running queries against three different gateway nodes, in three different regions.
@@ -130,5 +130,5 @@ If the database is not properly configured for multiple regions, then the networ
 Run the following command to update your database to a multi-region schema, with `"us-east-1"` as the primary region:
 
 ```
-$ docker run -it --rm cockroachdb/movr:21.1.0 --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" configure-multi-region --primary-region "us-east1" 
+$ docker run -it --rm cockroachdb/movr --url "postgres://root@docker.for.mac.localhost:26257/movr?sslmode=disable" configure-multi-region --primary-region "us-east1" 
 ```
