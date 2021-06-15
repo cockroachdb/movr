@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, inspect, text, Column, String
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.sql import column
+from sqlalchemy.types import Enum
 from models import Base, User, Vehicle, Ride, VehicleLocationHistory, PromoCode, UserPromoCode
 from sqlalchemy_cockroachdb import run_transaction
 from generators import MovRGenerator
@@ -223,8 +224,11 @@ class MovR:
 
     def update_region(self, table, region, cities):
 
+        region_list = self.get_regions()
+        region_enum = Enum(*region_list, name='crdb_internal_region', create_type=False, native_enum=False)
+
         def update_region_helper(session, table, region, cities):
-            crdb_region = Column('crdb_region', String)
+            crdb_region = Column('crdb_region', region_enum)
             table.append_column(crdb_region)
             query = table.update().where(column('city').in_(cities)
                                          ).values({crdb_region: region})
